@@ -3,14 +3,17 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "vibecoder-m00"
-version = "0.1.0"
-description = "Experimentos reproducibles para Codex App Server"
+name = "vibecoder"
+version = "0.2.0"
+description = "Núcleo persistente del orquestador vibecoder y herramientas M00"
 requires-python = ">=3.11"
 
 [project.scripts]
 vibecoder-m00-diagnose = "m00_codex.diagnostic:main"
 
 [tool.setuptools.packages.find]
-include = ["m00_codex*"]
+include = ["m00_codex*", "vibecoder*"]
+
+[tool.setuptools.package-data]
+vibecoder = ["migrations/*.sql"]
 

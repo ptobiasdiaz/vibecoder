@@ -11,9 +11,13 @@ persistente; uno con un turno real completado sí lo es. Concurrencia y cancelac
 live, límites por método de autenticación y recuperación de credenciales quedan como
 validaciones posteriores no bloqueantes. Véase [M00](M00.md).
 
-## M01 — Infraestructura mínima
+## M01 — Núcleo persistente del orquestador
 
-Docker Compose, API, DB, GitHub App/webhook verificado, colas/idempotencia, configuración multi-repositorio y salud interna.
+**Estado (2026-10-28): COMPLETADO.** Biblioteca Python independiente de interfaces,
+modelo persistente de cuentas/proyectos/agentes/sesiones/tareas, SQLite con migraciones,
+máquinas de estados, intentos, errores estructurados, idempotencia y recuperación
+conservadora. FastAPI, Docker, GitHub y colas externas quedan fuera del alcance vigente
+de M01. Véase [M01](M01.md).
 
 ## M02 — Bootstrap vertical
 

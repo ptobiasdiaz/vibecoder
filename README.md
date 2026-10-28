@@ -25,4 +25,7 @@ Permitir que un equipo dirija proyectos mediante GitHub Issues. Un agente princi
 
 ## Estado
 
-Especificación inicial de diseño. No existe todavía una implementación funcional. Las interfaces, nombres de métodos y compatibilidad exacta con la versión de Codex deben validarse en el primer hito técnico.
+M00 y M01 están completados. Existe un núcleo Python persistente con SQLite para
+cuentas, proyectos, agentes, sesiones y tareas, todavía sin interfaces web, GitHub,
+Telegram ni despliegue. Véanse [M00](docs/milestones/M00.md) y
+[M01](docs/milestones/M01.md).

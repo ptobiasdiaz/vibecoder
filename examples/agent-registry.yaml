@@ -1,0 +1,13 @@
+# Ejemplo ilustrativo: el repositorio vacío de prueba NO debe incluir este archivo manualmente.
+version: 1
+agents:
+  main:
+    role: .agents/main/role.md
+    knowledge: .agents/main/knowledge.md
+    persistent: true
+  backend-z80:
+    role: .agents/backend-z80/role.md
+    knowledge: .agents/backend-z80/knowledge.md
+    persistent: true
+    labels:
+      - area:backend-z80

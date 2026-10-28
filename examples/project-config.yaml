@@ -1,0 +1,12 @@
+# Ejemplo de configuración del orquestador, no credenciales reales.
+repositories:
+  - github_repository: organization/example-project
+    codex_account: primary
+    approval_label: status:approved
+    telegram_notifications:
+      critical: true
+      progress: true
+      detailed: false
+accounts:
+  - id: primary
+    auth_secret_ref: secret-manager/codex-primary

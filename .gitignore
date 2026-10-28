@@ -1,0 +1,10 @@
+__pycache__/
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite3
+*.log
+.workspaces/
+.sessions/
+secrets/

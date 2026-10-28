@@ -19,13 +19,22 @@ máquinas de estados, intentos, errores estructurados, idempotencia y recuperaci
 conservadora. FastAPI, Docker, GitHub y colas externas quedan fuera del alcance vigente
 de M01. Véase [M01](M01.md).
 
-## M02 — Bootstrap vertical
+## M02 — Ejecución persistente de agentes Codex
 
-Repositorio vacío → Issue bootstrap → conversación principal persistente → aprobación humana → PR inicial → merge humano → `READY`.
+**Estado (2026-10-28): COMPLETADO.** Worker local secuencial, adaptador App Server,
+persistencia de correlaciones y resultados, clasificación estructurada y recuperación
+conservadora implementados. La integración real confirmó un turno completo, la
+persistencia del resultado y la reanudación de la sesión tras reiniciar el worker y
+App Server. Se corrigió la incompatibilidad de `thread/start.sandbox`
+(`workspaceWrite` frente al valor oficial `workspace-write`). Permanecen fuera de
+alcance el scheduler distribuido y los approvals interactivos; la reconciliación se
+limita a 50 turnos, y concurrencia y cancelación live siguen pendientes. Véase
+[M02](M02.md).
 
-## M03 — Protocolo y preguntas
+## M03 — Bootstrap, protocolo y preguntas
 
-`/agent`, `/reply`, comentarios, preguntas pendientes, reanudación de sesiones y control de concurrencia.
+Repositorio vacío, `/agent`, `/reply`, comentarios, preguntas pendientes, reanudación
+de sesiones y control de concurrencia.
 
 ## M04 — Registro dinámico y especialistas
 

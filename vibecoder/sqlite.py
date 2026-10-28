@@ -62,6 +62,7 @@ _COLUMNS = {
             "idempotency_key",
             "created_at",
             "updated_at",
+            "prompt",
         }
     ),
     "execution_attempts": frozenset(
@@ -76,6 +77,10 @@ _COLUMNS = {
             "error_category",
             "error_message",
             "error_details_json",
+            "session_id",
+            "codex_thread_id",
+            "codex_turn_id",
+            "result_text",
         }
     ),
 }

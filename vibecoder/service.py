@@ -93,6 +93,17 @@ class OrchestratorCore:
             updated_at=str(row["updated_at"]),
         )
 
+    def set_account_status(
+        self, account_id: str, status: AccountStatus | str
+    ) -> CodexAccount:
+        self.get_account(account_id)
+        self.repository.update(
+            "codex_accounts",
+            account_id,
+            {"status": AccountStatus(status).value, "updated_at": _now()},
+        )
+        return self.get_account(account_id)
+
     def register_project(
         self,
         name: str,
@@ -264,6 +275,7 @@ class OrchestratorCore:
         external_ref: str | None = None,
         idempotency_key: str | None = None,
         task_id: str | None = None,
+        prompt: str | None = None,
     ) -> Task:
         self.get_project(project_id)
         agent = self.get_agent(agent_id)
@@ -281,6 +293,7 @@ class OrchestratorCore:
                     existing["agent_id"] != agent_id
                     or existing["task_type"] != task_type
                     or existing["external_ref"] != external_ref
+                    or existing["prompt"] != prompt
                 ):
                     raise ConflictError("idempotency_key reutilizada con datos diferentes")
                 return self.get_task(str(existing["id"]))
@@ -295,6 +308,7 @@ class OrchestratorCore:
             "idempotency_key": idempotency_key,
             "created_at": now,
             "updated_at": now,
+            "prompt": prompt,
         }
         try:
             self.repository.insert("tasks", values)
@@ -310,6 +324,7 @@ class OrchestratorCore:
                 existing["agent_id"] != agent_id
                 or existing["task_type"] != task_type
                 or existing["external_ref"] != external_ref
+                or existing["prompt"] != prompt
             ):
                 raise ConflictError("idempotency_key reutilizada con datos diferentes")
             return self.get_task(str(existing["id"]))
@@ -325,6 +340,7 @@ class OrchestratorCore:
             status=TaskStatus(str(row["status"])),
             external_ref=str(row["external_ref"]) if row["external_ref"] else None,
             idempotency_key=str(row["idempotency_key"]) if row["idempotency_key"] else None,
+            prompt=str(row["prompt"]) if row["prompt"] else None,
             created_at=str(row["created_at"]),
             updated_at=str(row["updated_at"]),
         )
@@ -397,6 +413,10 @@ class OrchestratorCore:
                     "error_category": None,
                     "error_message": None,
                     "error_details_json": None,
+                    "session_id": None,
+                    "codex_thread_id": None,
+                    "codex_turn_id": None,
+                    "result_text": None,
                 },
             )
         return self.get_attempt(attempt_id)
@@ -410,10 +430,17 @@ class OrchestratorCore:
         error_category: str | None = None,
         error_message: str | None = None,
         error_details: dict[str, Any] | None = None,
+        task_status: TaskStatus | str | None = None,
+        result_text: str | None = None,
     ) -> ExecutionAttempt:
         outcome = AttemptStatus(outcome)
-        if outcome not in {AttemptStatus.SUCCEEDED, AttemptStatus.FAILED, AttemptStatus.UNKNOWN}:
-            raise ValidationError("un intento solo puede finalizar como SUCCEEDED, FAILED o UNKNOWN")
+        if outcome not in {
+            AttemptStatus.SUCCEEDED,
+            AttemptStatus.FAILED,
+            AttemptStatus.UNKNOWN,
+            AttemptStatus.CANCELLED,
+        }:
+            raise ValidationError("estado final de intento no válido")
         with self.repository.transaction():
             attempt = self.get_attempt(attempt_id)
             if attempt.status is not AttemptStatus.RUNNING:
@@ -422,7 +449,10 @@ class OrchestratorCore:
                 AttemptStatus.SUCCEEDED: TaskStatus.COMPLETED,
                 AttemptStatus.FAILED: TaskStatus.FAILED,
                 AttemptStatus.UNKNOWN: TaskStatus.WAITING,
+                AttemptStatus.CANCELLED: TaskStatus.CANCELLED,
             }[outcome]
+            if task_status is not None:
+                final_task_status = TaskStatus(task_status)
             now = _now()
             self.repository.update(
                 "execution_attempts",
@@ -436,6 +466,7 @@ class OrchestratorCore:
                     "error_details_json": json.dumps(error_details, sort_keys=True)
                     if error_details
                     else None,
+                    "result_text": result_text,
                 },
             )
             self.repository.update(
@@ -461,7 +492,91 @@ class OrchestratorCore:
             error_category=str(row["error_category"]) if row["error_category"] else None,
             error_message=str(row["error_message"]) if row["error_message"] else None,
             error_details=details,
+            session_id=str(row["session_id"]) if row["session_id"] else None,
+            codex_thread_id=str(row["codex_thread_id"]) if row["codex_thread_id"] else None,
+            codex_turn_id=str(row["codex_turn_id"]) if row["codex_turn_id"] else None,
+            result_text=str(row["result_text"]) if row["result_text"] else None,
         )
+
+    def bind_attempt_session(self, attempt_id: str, session_id: str) -> ExecutionAttempt:
+        session = self.get_session(session_id)
+        attempt = self.get_attempt(attempt_id)
+        task = self.get_task(attempt.task_id)
+        agent = self.get_agent(session.agent_id)
+        if agent.project_id != task.project_id or agent.id != task.agent_id:
+            raise ConflictError("la sesión no pertenece al agente de la tarea")
+        self.repository.update("execution_attempts", attempt_id, {"session_id": session_id})
+        return self.get_attempt(attempt_id)
+
+    def bind_attempt_thread(self, attempt_id: str, thread_id: str) -> ExecutionAttempt:
+        self.repository.update(
+            "execution_attempts", attempt_id, {"codex_thread_id": _required(thread_id, "thread_id")}
+        )
+        return self.get_attempt(attempt_id)
+
+    def bind_attempt_turn(self, attempt_id: str, turn_id: str) -> ExecutionAttempt:
+        self.repository.update(
+            "execution_attempts", attempt_id, {"codex_turn_id": _required(turn_id, "turn_id")}
+        )
+        return self.get_attempt(attempt_id)
+
+    def get_or_create_session(self, agent_id: str) -> AgentSession:
+        self.get_agent(agent_id)
+        rows = self.repository.list("agent_sessions", agent_id=agent_id)
+        usable = [row for row in rows if row["persistence_state"] != SessionPersistenceState.LOST]
+        if usable:
+            return self.get_session(str(usable[-1]["id"]))
+        return self.create_session(agent_id)
+
+    def list_attempts_by_status(self, status: AttemptStatus | str) -> list[ExecutionAttempt]:
+        return [
+            self.get_attempt(str(row["id"]))
+            for row in self.repository.list("execution_attempts", status=AttemptStatus(status).value)
+        ]
+
+    def resolve_unknown_attempt(
+        self,
+        attempt_id: str,
+        outcome: AttemptStatus | str,
+        *,
+        result_text: str | None = None,
+        error_code: str | None = None,
+        error_category: str | None = None,
+        error_message: str | None = None,
+    ) -> ExecutionAttempt:
+        outcome = AttemptStatus(outcome)
+        if outcome not in {
+            AttemptStatus.SUCCEEDED,
+            AttemptStatus.FAILED,
+            AttemptStatus.CANCELLED,
+        }:
+            raise ValidationError("la reconciliación requiere un resultado final confirmado")
+        with self.repository.transaction():
+            attempt = self.get_attempt(attempt_id)
+            if attempt.status is not AttemptStatus.UNKNOWN:
+                raise ConflictError("solo se reconcilian intentos UNKNOWN")
+            task_status = {
+                AttemptStatus.SUCCEEDED: TaskStatus.COMPLETED,
+                AttemptStatus.FAILED: TaskStatus.FAILED,
+                AttemptStatus.CANCELLED: TaskStatus.CANCELLED,
+            }[outcome]
+            now = _now()
+            self.repository.update(
+                "execution_attempts",
+                attempt_id,
+                {
+                    "status": outcome.value,
+                    "finished_at": now,
+                    "result_text": result_text,
+                    "error_code": error_code,
+                    "error_category": error_category,
+                    "error_message": error_message,
+                },
+            )
+            self.repository.update(
+                "tasks", attempt.task_id, {"status": task_status.value, "updated_at": now}
+            )
+        return self.get_attempt(attempt_id)
 
     def list_attempts(self, task_id: str) -> list[ExecutionAttempt]:
         self.get_task(task_id)

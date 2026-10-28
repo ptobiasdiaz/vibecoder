@@ -9,8 +9,9 @@ Entidades iniciales:
 - `Agent`: ID lógico, repositorio, rol, versión de definición, estado, cuenta asignada.
 - `Session`: ID técnico Codex, agente, cuenta, ciclo de vida, estado de compactación/reconstrucción.
 - `Task`: unidad asignada a un agente, estado, referencia externa e idempotencia.
-- `ExecutionAttempt`: intento numerado, resultado y error estructurado; un resultado
-  desconocido tras reinicio nunca se reejecuta sin reconciliación.
+- `ExecutionAttempt`: intento numerado, sesión, thread, turn, resultado final y error
+  estructurado; un resultado desconocido tras reinicio nunca se reejecuta sin
+  reconciliación.
 - `IssueWorkflow`: issue ID, estado, revisión de especificación aprobada, responsables, versión de etiquetas.
 - `Execution`: ID, sesión, evento origen, prompt_comment_id, response_comment_id, estado, intentos, timestamps, consumo.
 - `Question`: ID estable, Issue/PR, autor lógico, destinatario, comentario origen, comentario respuesta, estado.

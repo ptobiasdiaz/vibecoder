@@ -24,3 +24,8 @@ Solo un humano con permisos suficientes puede activar la etiqueta de aprobación
 ## Ejecución
 
 Bloquear sesión, registrar intención, publicar prompt, ejecutar turno, publicar resultado, reconciliar IDs y liberar bloqueo. Si falla en medio de efectos externos, consultar GitHub y estado persistido antes de repetir. No iniciar dos turnos simultáneos de una misma sesión.
+
+En el worker local de M02, el intento se crea antes de llamar a Codex; thread y turn se
+persisten en cuanto se conocen. Un reinicio deja el intento `UNKNOWN` y la tarea
+`WAITING`. Solo la consulta de historial o una decisión explícita puede cerrarlo; el
+prompt no se reenvía automáticamente.

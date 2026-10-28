@@ -6,6 +6,12 @@ import json
 import sys
 import time
 
+from m00_codex.protocol import ApprovalPolicy, SandboxMode
+
+
+VALID_SANDBOX_MODES = {mode.value for mode in SandboxMode}
+VALID_APPROVAL_POLICIES = {policy.value for policy in ApprovalPolicy}
+
 
 def emit(message: object) -> None:
     print(json.dumps(message), flush=True)
@@ -24,6 +30,33 @@ def main() -> None:
         if method == "initialize":
             result = {"userAgent": "fake-codex/0.1"}
         elif method == "thread/start":
+            sandbox = params.get("sandbox")
+            approval_policy = params.get("approvalPolicy")
+            if sandbox is not None and sandbox not in VALID_SANDBOX_MODES:
+                emit(
+                    {
+                        "id": request_id,
+                        "error": {
+                            "code": -32600,
+                            "message": f"Invalid request: invalid sandbox {sandbox!r}",
+                        },
+                    }
+                )
+                continue
+            if approval_policy is not None and approval_policy not in VALID_APPROVAL_POLICIES:
+                emit(
+                    {
+                        "id": request_id,
+                        "error": {
+                            "code": -32600,
+                            "message": (
+                                "Invalid request: invalid approvalPolicy "
+                                f"{approval_policy!r}"
+                            ),
+                        },
+                    }
+                )
+                continue
             thread_id = f"thr_{len(threads) + 1}"
             threads[thread_id] = {"id": thread_id, "ephemeral": False}
             result = {"thread": threads[thread_id]}

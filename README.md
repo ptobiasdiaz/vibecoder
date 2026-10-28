@@ -25,7 +25,8 @@ Permitir que un equipo dirija proyectos mediante GitHub Issues. Un agente princi
 
 ## Estado
 
-M00 y M01 están completados. Existe un núcleo Python persistente con SQLite para
-cuentas, proyectos, agentes, sesiones y tareas, todavía sin interfaces web, GitHub,
-Telegram ni despliegue. Véanse [M00](docs/milestones/M00.md) y
-[M01](docs/milestones/M01.md).
+M00 y M01 están completados. M02 dispone de un worker local y adaptador Codex con
+validación automatizada, pendiente de validación live end-to-end. El sistema continúa
+sin interfaces web, GitHub, Telegram ni despliegue. Véanse
+[M00](docs/milestones/M00.md), [M01](docs/milestones/M01.md) y
+[M02](docs/milestones/M02.md).

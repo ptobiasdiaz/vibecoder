@@ -66,6 +66,7 @@ class AttemptStatus(StrEnum):
     SUCCEEDED = "SUCCEEDED"
     FAILED = "FAILED"
     UNKNOWN = "UNKNOWN"
+    CANCELLED = "CANCELLED"
 
 
 TASK_TRANSITIONS: Mapping[TaskStatus, frozenset[TaskStatus]] = {
@@ -184,6 +185,7 @@ class Task:
     status: TaskStatus
     external_ref: str | None
     idempotency_key: str | None
+    prompt: str | None
     created_at: str
     updated_at: str
 
@@ -200,4 +202,8 @@ class ExecutionAttempt:
     error_category: str | None
     error_message: str | None
     error_details: Mapping[str, Any] | None
+    session_id: str | None
+    codex_thread_id: str | None
+    codex_turn_id: str | None
+    result_text: str | None
 

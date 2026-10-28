@@ -30,6 +30,13 @@ class ClientTests(unittest.IsolatedAsyncioTestCase):
         resumed = await self.client.resume_thread(thread_id)
         self.assertEqual(resumed["thread"]["id"], thread_id)
 
+    async def test_fake_server_rejects_invalid_thread_start_enums(self) -> None:
+        with self.assertRaises(RpcError) as raised:
+            await self.client.start_thread(
+                approvalPolicy="never", sandbox="workspaceWrite"
+            )
+        self.assertEqual(raised.exception.error["code"], -32600)
+
     async def test_turn_streams_text_and_final_status(self) -> None:
         started = await self.client.start_thread()
         result = await self.client.run_turn(started["thread"]["id"], "ping")

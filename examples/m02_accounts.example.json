@@ -1,0 +1,11 @@
+{
+  "accounts": {
+    "replace-with-account-uuid": {
+      "codex_home": "/srv/vibecoder/codex-homes/account-1",
+      "codex_executable": "/usr/local/bin/codex",
+      "cwd": "/srv/vibecoder/workspaces/project-1",
+      "timeout_seconds": 600,
+      "extra_args": []
+    }
+  }
+}

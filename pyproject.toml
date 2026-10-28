@@ -4,12 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vibecoder"
-version = "0.2.0"
-description = "Núcleo persistente del orquestador vibecoder y herramientas M00"
+version = "0.3.0"
+description = "Orquestador persistente local de agentes Codex"
 requires-python = ">=3.11"
 
 [project.scripts]
 vibecoder-m00-diagnose = "m00_codex.diagnostic:main"
+vibecoder-worker = "vibecoder.worker:main"
 
 [tool.setuptools.packages.find]
 include = ["m00_codex*", "vibecoder*"]

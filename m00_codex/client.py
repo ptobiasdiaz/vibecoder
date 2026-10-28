@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, AsyncIterator, Mapping, Sequence
 
+from .protocol import SortDirection, TurnItemsView
+
 
 class AppServerError(RuntimeError):
     """Error base del cliente o proceso App Server."""
@@ -201,28 +203,49 @@ class AppServerClient:
     async def interrupt_turn(self, thread_id: str, turn_id: str) -> Mapping[str, Any]:
         return await self.request("turn/interrupt", {"threadId": thread_id, "turnId": turn_id})
 
+    async def list_turns(self, thread_id: str, *, limit: int = 50) -> Mapping[str, Any]:
+        return await self.request(
+            "thread/turns/list",
+            {
+                "threadId": thread_id,
+                "limit": limit,
+                "sortDirection": SortDirection.DESCENDING.value,
+                "itemsView": TurnItemsView.SUMMARY.value,
+            },
+        )
+
+    async def wait_turn(
+        self, thread_id: str, turn_id: str, *, timeout: float | None = None
+    ) -> TurnResult:
+        async def wait() -> TurnResult:
+            deltas: list[str] = []
+            try:
+                while True:
+                    event = await self._turn_events[turn_id].get()
+                    method = event.get("method")
+                    event_params = event.get("params", {})
+                    if method == "item/agentMessage/delta":
+                        deltas.append(str(event_params.get("delta", "")))
+                    if method == "turn/completed":
+                        turn = event_params.get("turn", {})
+                        return TurnResult(
+                            thread_id=thread_id,
+                            turn_id=turn_id,
+                            status=str(turn.get("status", "unknown")),
+                            text="".join(deltas),
+                            turn=turn,
+                        )
+            finally:
+                self._turn_events.pop(turn_id, None)
+
+        if timeout is None:
+            return await wait()
+        return await asyncio.wait_for(wait(), timeout)
+
     async def run_turn(self, thread_id: str, text: str, **params: Any) -> TurnResult:
         started = await self.start_turn(thread_id, text, **params)
         turn_id = str(started["turn"]["id"])
-        deltas: list[str] = []
-        try:
-            while True:
-                event = await self._turn_events[turn_id].get()
-                method = event.get("method")
-                event_params = event.get("params", {})
-                if method == "item/agentMessage/delta":
-                    deltas.append(str(event_params.get("delta", "")))
-                if method == "turn/completed":
-                    turn = event_params.get("turn", {})
-                    return TurnResult(
-                        thread_id=thread_id,
-                        turn_id=turn_id,
-                        status=str(turn.get("status", "unknown")),
-                        text="".join(deltas),
-                        turn=turn,
-                    )
-        finally:
-            self._turn_events.pop(turn_id, None)
+        return await self.wait_turn(thread_id, turn_id)
 
     async def next_event(self, timeout: float | None = None) -> Mapping[str, Any]:
         if timeout is None:

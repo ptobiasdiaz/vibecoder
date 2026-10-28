@@ -4,7 +4,10 @@
 
 - **GitHub App**: webhooks, comentarios, etiquetas, ramas, PR y permisos de GitHub.
 - **Orquestador**: máquina de estados, enrutamiento, prompts, registro de agentes, coordinación, autorización, idempotencia y planificación.
-- **Codex runtime**: adaptador para crear, reanudar, observar y cancelar turnos. Preferencia inicial: Codex App Server; validar API y semántica en una prueba técnica.
+- **Codex runtime**: adaptador App Server para crear, reanudar, observar, reconciliar y
+  cancelar turnos, aislado por cuenta.
+- **Worker local**: selecciona una tarea persistente, coordina una ejecución secuencial
+  y cierra recursos; no implementa transporte ni autenticación.
 - **Workers**: ejecución bajo demanda y aislada, con worktrees por Issue y entornos de compilación controlados.
 - **Persistencia**: proyectos, cuentas, sesiones, turnos, preguntas, trabajos, eventos y estado de recuperación.
 - **Telegram**: alertas y consultas de estado; no sustituye GitHub para aprobaciones.

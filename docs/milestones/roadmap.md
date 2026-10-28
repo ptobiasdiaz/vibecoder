@@ -4,6 +4,13 @@
 
 Verificar Codex App Server/CLI: crear y reanudar sesión, recuperar salida, observar uso/límites disponibles, reiniciar proceso, autenticación por cuenta y comportamiento de errores. Documentar limitaciones reales.
 
+**Estado (2026-10-28): COMPLETADO.** Cliente, diagnóstico, unitarias e integración
+opt-in implementados. Confirmados App Server 0.163.0, handshake, creación, aislamiento,
+turno real y reanudación después de reiniciar. Un thread sin primer turno no es
+persistente; uno con un turno real completado sí lo es. Concurrencia y cancelación
+live, límites por método de autenticación y recuperación de credenciales quedan como
+validaciones posteriores no bloqueantes. Véase [M00](M00.md).
+
 ## M01 — Infraestructura mínima
 
 Docker Compose, API, DB, GitHub App/webhook verificado, colas/idempotencia, configuración multi-repositorio y salud interna.

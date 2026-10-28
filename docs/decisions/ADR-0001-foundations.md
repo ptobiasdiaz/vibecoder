@@ -1,6 +1,6 @@
 # ADR-0001 — Principios iniciales del sistema
 
-Estado: Aceptado como línea base de diseño (pendiente de validación técnica).
+Estado: Aceptado como línea base de diseño (validación técnica M00 completada).
 
 ## Decisiones
 
@@ -19,8 +19,8 @@ Estado: Aceptado como línea base de diseño (pendiente de validación técnica)
 
 ## Aspectos aún abiertos
 
-- Validación de API y recuperación de sesiones en versión concreta de Codex.
-- Modelo de autenticación por cuenta y compatibilidad con condiciones del proveedor.
+- Validaciones live no bloqueantes de concurrencia y cancelación.
+- Compatibilidad y recuperación de cada mecanismo de autenticación; véase ADR-0002.
 - Política de límites y asignación de recursos entre proyectos.
 - Formato exacto de salida estructurada del agente frente a Markdown visible.
 - Política de revisión de especialistas y reconciliación de cambios paralelos.

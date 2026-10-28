@@ -12,7 +12,11 @@
 
 La configuración versionada del repositorio declara identidades, rutas de documentación y responsabilidades. Un agente no se autoriza ni cambia permisos editando un comentario. Altas, cambios y retiradas del registro requieren PR y validación humana.
 
-Separar identidad lógica (`backend-z80`), sesión técnica de Codex y versión de responsabilidades. Una sesión puede compactarse o reconstruirse desde documentos sin perder identidad lógica. Las sesiones y credenciales pertenecen a un proyecto/cuenta explícitos.
+Separar identidad lógica (`backend-z80`), sesión operativa de Codex y memoria duradera
+versionada. Un thread vacío aún no es una sesión recuperable; después de un turno real
+completado puede reanudarse tras reiniciar App Server. Una sesión puede compactarse o
+reconstruirse desde documentos sin perder identidad lógica. Las sesiones pertenecen a
+una cuenta explícita, pero las credenciales pertenecen a la cuenta, no al agente.
 
 ## Asignación y colaboración
 

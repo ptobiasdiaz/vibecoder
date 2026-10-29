@@ -29,3 +29,8 @@ En el worker local de M02, el intento se crea antes de llamar a Codex; thread y 
 persisten en cuanto se conocen. Un reinicio deja el intento `UNKNOWN` y la tarea
 `WAITING`. Solo la consulta de historial o una decisión explícita puede cerrarlo; el
 prompt no se reenvía automáticamente.
+
+En M03.2, un comentario pasa por `RECEIVED → QUEUED → RUNNING → RESPONSE_PENDING →
+COMPLETED`. `IGNORED` representa ecos del bot; `REJECTED`, actor no autorizado o directiva inválida;
+`BLOCKED` conserva una ejecución fallida o incierta. La publicación se reintenta desde
+`RESPONSE_PENDING` sin volver a ejecutar Codex.

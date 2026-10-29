@@ -25,8 +25,9 @@ Permitir que un equipo dirija proyectos mediante GitHub Issues. Un agente princi
 
 ## Estado
 
-M00 y M01 están completados. M02 dispone de un worker local y adaptador Codex con
-validación automatizada, pendiente de validación live end-to-end. El sistema continúa
-sin interfaces web, GitHub, Telegram ni despliegue. Véanse
+M00, M01, M02 y M03.2 están completados. M03.1 incorpora el adaptador REST de GitHub
+y el registro persistente de repositorios. M03.2 valida la conversación de bootstrap
+live mediante polling, agente principal persistente y aprobación atribuida, todavía
+sin webhooks, generación de código, ramas, Pull Requests, Telegram ni despliegue. Véanse
 [M00](docs/milestones/M00.md), [M01](docs/milestones/M01.md) y
 [M02](docs/milestones/M02.md).

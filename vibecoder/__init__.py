@@ -7,7 +7,13 @@ from .domain import (
     AgentType,
     AttemptStatus,
     AuthType,
+    BootstrapComment,
+    BootstrapCommentStatus,
+    BootstrapStatus,
+    BootstrapWorkflow,
     CodexAccount,
+    GitHubOperation,
+    GitHubRepository,
     Project,
     ProjectStatus,
     SessionPersistenceState,
@@ -17,6 +23,7 @@ from .domain import (
 from .errors import ConflictError, InvalidTransition, NotFoundError, ValidationError
 from .service import OrchestratorCore
 from .sqlite import SQLiteRepository
+from .github_service import GitHubRegistryService
 
 __all__ = [
     "AccountStatus",
@@ -25,8 +32,15 @@ __all__ = [
     "AgentType",
     "AttemptStatus",
     "AuthType",
+    "BootstrapComment",
+    "BootstrapCommentStatus",
+    "BootstrapStatus",
+    "BootstrapWorkflow",
     "CodexAccount",
     "ConflictError",
+    "GitHubOperation",
+    "GitHubRepository",
+    "GitHubRegistryService",
     "InvalidTransition",
     "NotFoundError",
     "OrchestratorCore",

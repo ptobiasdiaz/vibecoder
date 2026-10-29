@@ -38,3 +38,18 @@ Sí, mediante la operación `read_block`, sin cambiar el contrato público.
 ## Por validar
 
 Mecanismo exacto de correlación de preguntas cuando un comentario contiene varias solicitudes; manejo de ediciones y borrados; comentarios de revisión inline; distinción entre respuesta de Codex y solicitudes de acción. Empezar con una pregunta pendiente por turno de agente.
+
+## Perfil M03.2 — Bootstrap
+
+- Un comentario ordinario autorizado se dirige a `main`.
+- `/agent main` es el único destinatario explícito aceptado en este subhito.
+- Otras directivas se registran como rechazadas y no crean tareas.
+- La identidad se obtiene del campo `user` de GitHub; los marcadores HTML no autentican.
+- Los comentarios de actores tipo `Bot` no crean tareas.
+- Con un token personal, compartir login con vibecoder no convierte una intervención
+  humana en comentario del bot. Solo se considera respuesta propia el comentario cuyo
+  ID remoto está vinculado a una operación `CREATE_COMMENT` persistida.
+- Cada respuesta visible comienza con `vibecoder · agente main` y conserva un marcador
+  opaco de idempotencia gestionado por el adaptador.
+- Tras aprobar el bootstrap, comentarios posteriores se registran pero no alteran la
+  especificación congelada.

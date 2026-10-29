@@ -7,10 +7,16 @@ name = "vibecoder"
 version = "0.3.0"
 description = "Orquestador persistente local de agentes Codex"
 requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27,<1",
+    "pydantic>=2.7,<3",
+]
 
 [project.scripts]
 vibecoder-m00-diagnose = "m00_codex.diagnostic:main"
 vibecoder-worker = "vibecoder.worker:main"
+vibecoder-bootstrap = "vibecoder.bootstrap:main"
+vibecoder-live-setup = "vibecoder.live_setup:main"
 
 [tool.setuptools.packages.find]
 include = ["m00_codex*", "vibecoder*"]

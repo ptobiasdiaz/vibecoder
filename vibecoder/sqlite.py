@@ -83,6 +83,38 @@ _COLUMNS = {
             "result_text",
         }
     ),
+    "github_repositories": frozenset(
+        {
+            "id", "project_id", "github_id", "node_id", "owner_login", "name",
+            "full_name", "html_url", "api_url", "default_branch", "visibility",
+            "archived", "is_empty", "permissions_json", "last_synced_at",
+            "created_at", "updated_at",
+        }
+    ),
+    "github_operations": frozenset(
+        {
+            "id", "repository_id", "operation_type", "idempotency_key",
+            "payload_hash", "status", "remote_id", "remote_url", "error_code",
+            "error_message", "created_at", "updated_at",
+        }
+    ),
+    "bootstrap_workflows": frozenset(
+        {
+            "id", "project_id", "repository_id", "github_issue_id",
+            "github_issue_node_id", "issue_number", "issue_url",
+            "principal_agent_id", "status", "approval_label", "approved_by",
+            "approved_event_id", "approved_at", "frozen_specification",
+            "last_polled_at", "created_at", "updated_at",
+        }
+    ),
+    "bootstrap_comments": frozenset(
+        {
+            "id", "workflow_id", "github_comment_id", "github_node_id",
+            "author_login", "author_type", "body", "remote_created_at", "status",
+            "rejection_reason", "task_id", "response_text",
+            "response_github_comment_id", "created_at", "updated_at",
+        }
+    ),
 }
 
 

@@ -31,10 +31,32 @@ alcance el scheduler distribuido y los approvals interactivos; la reconciliació
 limita a 50 turnos, y concurrencia y cancelación live siguen pendientes. Véase
 [M02](M02.md).
 
-## M03 — Bootstrap, protocolo y preguntas
+## M03 — GitHub, bootstrap, protocolo y recuperación
 
-Repositorio vacío, `/agent`, `/reply`, comentarios, preguntas pendientes, reanudación
-de sesiones y control de concurrencia.
+### M03.1 — Adaptador GitHub y registro de repositorios
+
+**Estado (2026-10-28): COMPLETADO; LECTURA LIVE VALIDADA.** Adaptador
+REST, autenticación externa, registro por ID estable, repositorios vacíos, Issues,
+comentarios, etiquetas, persistencia e idempotencia con reconciliación local/remota.
+Sin webhooks ni ejecución de agentes. Véase [M03.1](M03.1.md).
+
+### M03.2 — Bootstrap persistente
+
+**Estado (2026-10-29): COMPLETADO; FLUJO LIVE VALIDADO.** Issue único, agente
+principal y sesión persistentes, polling autorizado, ejecución mediante M02,
+publicación idempotente, recuperación conservadora y aprobación atribuida por evento.
+Se validó en GitHub real una intervención humana, su turno Codex persistido y la
+respuesta publicada. La segunda intervención live tras reiniciar sigue pendiente de
+observación. Sin generación de código ni Pull Requests. Véase [M03.2](M03.2.md).
+
+### M03.3 — Protocolo de conversación y preguntas
+
+Comentarios, `/agent`, `/reply`, preguntas pendientes y correlación de respuestas.
+
+### M03.4 — Procesamiento recuperable de eventos
+
+Ingesta de eventos GitHub, deduplicación, reanudación de sesiones y control de
+concurrencia, manteniendo reconciliación conservadora.
 
 ## M04 — Registro dinámico y especialistas
 

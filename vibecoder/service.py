@@ -10,6 +10,7 @@ from uuid import uuid4
 from .domain import (
     SESSION_TRANSITIONS,
     TASK_TRANSITIONS,
+    PROJECT_TRANSITIONS,
     AccountStatus,
     Agent,
     AgentSession,
@@ -141,6 +142,18 @@ class OrchestratorCore:
 
     def list_projects(self) -> list[Project]:
         return [self.get_project(str(row["id"])) for row in self.repository.list("projects")]
+
+    def transition_project(
+        self, project_id: str, requested: ProjectStatus | str
+    ) -> Project:
+        project = self.get_project(project_id)
+        requested = ProjectStatus(requested)
+        if requested not in PROJECT_TRANSITIONS[project.status]:
+            raise InvalidTransition("project", project.status, requested)
+        self.repository.update(
+            "projects", project_id, {"status": requested.value, "updated_at": _now()}
+        )
+        return self.get_project(project_id)
 
     def assign_project_account(self, project_id: str, account_id: str) -> Project:
         project = self.get_project(project_id)
@@ -615,4 +628,35 @@ class OrchestratorCore:
                 )
                 recovered.append(self.get_task(task_id))
         return recovered
+
+    def recover_interrupted_task(self, task_id: str) -> Task:
+        """Recupera una tarea concreta sin afectar otros workers o flujos."""
+        with self.repository.transaction():
+            task = self.get_task(task_id)
+            if task.status is not TaskStatus.RUNNING:
+                return task
+            now = _now()
+            for attempt in self.repository.list(
+                "execution_attempts",
+                task_id=task_id,
+                status=AttemptStatus.RUNNING.value,
+            ):
+                self.repository.update(
+                    "execution_attempts",
+                    str(attempt["id"]),
+                    {
+                        "status": AttemptStatus.UNKNOWN.value,
+                        "finished_at": now,
+                        "error_code": "PROCESS_RESTARTED",
+                        "error_category": "recovery",
+                        "error_message": "resultado desconocido tras reiniciar el proceso",
+                        "error_details_json": None,
+                    },
+                )
+            self.repository.update(
+                "tasks",
+                task_id,
+                {"status": TaskStatus.WAITING.value, "updated_at": now},
+            )
+        return self.get_task(task_id)
 

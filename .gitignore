@@ -11,3 +11,4 @@ secrets/
 *.py[cod]
 *.egg-info/
 .venv/
+continue.sh

@@ -66,6 +66,16 @@ class LocalWorker:
         task = self.select_task()
         if task is None:
             return WorkerOutcome(None, None, "IDLE", "no hay tareas PENDING")
+        return await self._run_task(task)
+
+    async def run_task(self, task_id: str) -> WorkerOutcome:
+        """Ejecuta una tarea concreta sin competir con otras colas de aplicación."""
+        task = self.core.get_task(task_id)
+        if task.status is not TaskStatus.PENDING:
+            raise ConflictError("la ejecución dirigida requiere una tarea PENDING")
+        return await self._run_task(task)
+
+    async def _run_task(self, task: Task) -> WorkerOutcome:
         project = self.core.get_project(task.project_id)
         agent = self.core.get_agent(task.agent_id)
         account = self.core.get_account(project.codex_account_id)

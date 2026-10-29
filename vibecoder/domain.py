@@ -69,6 +69,24 @@ class AttemptStatus(StrEnum):
     CANCELLED = "CANCELLED"
 
 
+class BootstrapStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    APPROVAL_PENDING = "APPROVAL_PENDING"
+    APPROVED = "APPROVED"
+    BLOCKED = "BLOCKED"
+
+
+class BootstrapCommentStatus(StrEnum):
+    RECEIVED = "RECEIVED"
+    IGNORED = "IGNORED"
+    REJECTED = "REJECTED"
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    RESPONSE_PENDING = "RESPONSE_PENDING"
+    COMPLETED = "COMPLETED"
+    BLOCKED = "BLOCKED"
+
+
 TASK_TRANSITIONS: Mapping[TaskStatus, frozenset[TaskStatus]] = {
     TaskStatus.PENDING: frozenset({TaskStatus.RUNNING, TaskStatus.CANCELLED}),
     TaskStatus.RUNNING: frozenset(
@@ -93,6 +111,20 @@ TASK_TRANSITIONS: Mapping[TaskStatus, frozenset[TaskStatus]] = {
     TaskStatus.COMPLETED: frozenset(),
     TaskStatus.FAILED: frozenset({TaskStatus.PENDING}),
     TaskStatus.CANCELLED: frozenset(),
+}
+
+
+PROJECT_TRANSITIONS: Mapping[ProjectStatus, frozenset[ProjectStatus]] = {
+    ProjectStatus.UNINITIALIZED: frozenset(
+        {ProjectStatus.BOOTSTRAPPING, ProjectStatus.DISABLED}
+    ),
+    ProjectStatus.BOOTSTRAPPING: frozenset(
+        {ProjectStatus.DESIGNING, ProjectStatus.DISABLED}
+    ),
+    ProjectStatus.DESIGNING: frozenset({ProjectStatus.READY, ProjectStatus.DISABLED}),
+    ProjectStatus.READY: frozenset({ProjectStatus.ACTIVE, ProjectStatus.DISABLED}),
+    ProjectStatus.ACTIVE: frozenset({ProjectStatus.DISABLED}),
+    ProjectStatus.DISABLED: frozenset(),
 }
 
 
@@ -206,4 +238,81 @@ class ExecutionAttempt:
     codex_thread_id: str | None
     codex_turn_id: str | None
     result_text: str | None
+
+
+@dataclass(frozen=True)
+class GitHubRepository:
+    id: str
+    project_id: str
+    github_id: int
+    node_id: str
+    owner_login: str
+    name: str
+    full_name: str
+    html_url: str
+    api_url: str
+    default_branch: str | None
+    visibility: str
+    archived: bool
+    is_empty: bool
+    permissions: Mapping[str, bool]
+    last_synced_at: str
+    created_at: str
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class GitHubOperation:
+    id: str
+    repository_id: str
+    operation_type: str
+    idempotency_key: str
+    payload_hash: str
+    status: str
+    remote_id: str | None
+    remote_url: str | None
+    error_code: str | None
+    error_message: str | None
+    created_at: str
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class BootstrapWorkflow:
+    id: str
+    project_id: str
+    repository_id: str
+    github_issue_id: int
+    github_issue_node_id: str
+    issue_number: int
+    issue_url: str
+    principal_agent_id: str
+    status: BootstrapStatus
+    approval_label: str
+    approved_by: str | None
+    approved_event_id: int | None
+    approved_at: str | None
+    frozen_specification: str | None
+    last_polled_at: str | None
+    created_at: str
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class BootstrapComment:
+    id: str
+    workflow_id: str
+    github_comment_id: int
+    github_node_id: str
+    author_login: str
+    author_type: str
+    body: str
+    remote_created_at: str
+    status: BootstrapCommentStatus
+    rejection_reason: str | None
+    task_id: str | None
+    response_text: str | None
+    response_github_comment_id: int | None
+    created_at: str
+    updated_at: str
 

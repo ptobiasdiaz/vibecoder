@@ -2,7 +2,9 @@
 
 ## Componentes
 
-- **GitHub App**: webhooks, comentarios, etiquetas, ramas, PR y permisos de GitHub.
+- **Adaptador GitHub**: API REST, autenticación externa, repositorios, Issues,
+  comentarios y etiquetas. M03.1 usa tokens externos; GitHub App y webhooks se
+  incorporarán en subhitos posteriores.
 - **Orquestador**: máquina de estados, enrutamiento, prompts, registro de agentes, coordinación, autorización, idempotencia y planificación.
 - **Codex runtime**: adaptador App Server para crear, reanudar, observar, reconciliar y
   cancelar turnos, aislado por cuenta.

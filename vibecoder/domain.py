@@ -87,6 +87,42 @@ class BootstrapCommentStatus(StrEnum):
     BLOCKED = "BLOCKED"
 
 
+class GenerationStatus(StrEnum):
+    PENDING = "PENDING"
+    PREPARING_WORKSPACE = "PREPARING_WORKSPACE"
+    GENERATING = "GENERATING"
+    VALIDATING = "VALIDATING"
+    READY_TO_PUBLISH = "READY_TO_PUBLISH"
+    BLOCKED = "BLOCKED"
+    FAILED = "FAILED"
+    ARCHIVED = "ARCHIVED"
+
+
+class GitConfigurationStatus(StrEnum):
+    PROPOSED = "PROPOSED"
+    CONFIRMED = "CONFIRMED"
+    APPROVED = "APPROVED"
+    APPLIED = "APPLIED"
+
+
+class GitInitializationStrategy(StrEnum):
+    EXISTING_BASE = "EXISTING_BASE"
+    TECHNICAL_BASE_COMMIT = "TECHNICAL_BASE_COMMIT"
+
+
+class TechnicalCommitPolicy(StrEnum):
+    NONE = "NONE"
+    CREATE_MINIMAL = "CREATE_MINIMAL"
+
+
+class GitPublicationPolicy(StrEnum):
+    PULL_REQUEST = "PULL_REQUEST"
+
+
+class GitIntegrationPolicy(StrEnum):
+    HUMAN_REVIEW_MERGE = "HUMAN_REVIEW_MERGE"
+
+
 TASK_TRANSITIONS: Mapping[TaskStatus, frozenset[TaskStatus]] = {
     TaskStatus.PENDING: frozenset({TaskStatus.RUNNING, TaskStatus.CANCELLED}),
     TaskStatus.RUNNING: frozenset(
@@ -313,6 +349,64 @@ class BootstrapComment:
     task_id: str | None
     response_text: str | None
     response_github_comment_id: int | None
+    created_at: str
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class GenerationWorkflow:
+    id: str
+    project_id: str
+    bootstrap_workflow_id: str
+    repository_id: str
+    approved_by: str
+    approved_event_id: int
+    specification_hash: str
+    workspace_path: str
+    remote_url: str
+    base_branch: str | None
+    base_commit: str | None
+    bootstrap_branch: str
+    git_configuration_id: str | None
+    git_configuration_hash: str | None
+    task_id: str | None
+    session_id: str | None
+    status: GenerationStatus
+    instruction_versions: Mapping[str, str]
+    generated_instruction_versions: Mapping[str, str]
+    validation_result: Mapping[str, Any] | None
+    commit_hash: str | None
+    blocked_reason: str | None
+    created_at: str
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class GitConfiguration:
+    id: str
+    workflow_id: str
+    repository_id: str
+    revision: int
+    status: GitConfigurationStatus
+    schema_version: int
+    main_branch: str
+    base_branch_exists: bool
+    initialization_strategy: GitInitializationStrategy
+    technical_commit_policy: TechnicalCommitPolicy
+    publication_policy: GitPublicationPolicy
+    integration_policy: GitIntegrationPolicy
+    bootstrap_branch: str
+    authorized_operations: tuple[str, ...]
+    configuration_hash: str
+    source_comment_id: int | None
+    observed_github_id: int
+    observed_is_empty: bool
+    observed_default_branch: str | None
+    observed_head_sha: str | None
+    specification_hash: str | None
+    approved_by: str | None
+    approved_event_id: int | None
+    applied_at: str | None
     created_at: str
     updated_at: str
 

@@ -12,17 +12,21 @@
 3. Crea un único Issue de bootstrap de forma idempotente.
 4. Crea agente principal lógico y sesión Codex con instrucciones genéricas del sistema.
 5. Principal conversa con desarrollador, documenta objetivos y arquitectura preliminar.
-6. Desarrollador autorizado añade etiqueta de aprobación. Durante polling se verifica
+6. Principal presenta una configuración Git estructurada; un desarrollador autorizado
+   puede modificarla y la confirma con un único bloque `vibecoder-git-config`.
+7. Desarrollador autorizado añade etiqueta de aprobación. Durante polling se verifica
    que el evento más reciente de esa etiqueta sea atribuible a ese actor; la etiqueta
-   por sí sola no autoriza.
-7. Se crea rama/PR con README, AGENTS.md, registro mínimo del agente principal y documentos base.
-8. Un humano revisa y fusiona; proyecto pasa a `READY`.
-9. Los especialistas aparecen más adelante mediante cambios de configuración aprobados por PR.
+   por sí sola no autoriza y la configuración confirmada es obligatoria.
+8. Se crea rama/PR con README, AGENTS.md, registro mínimo del agente principal y documentos base.
+9. Un humano revisa y fusiona; proyecto pasa a `READY`.
+10. Los especialistas aparecen más adelante mediante cambios de configuración aprobados por PR.
 
 El agente principal inicial y definitivo comparten identidad lógica. No crear especialistas ficticios. Guardar IDs de Issue, PR, sesión y estado para sobrevivir a reinicios.
 
 En M03.2 el flujo termina al congelar la especificación conversacional y mover el
-proyecto a `DESIGNING`. Los pasos de archivos, rama y PR permanecen diferidos.
+proyecto a `DESIGNING`. M03.3 prepara un workspace aislado, genera `AGENTS.md`, la
+estructura mínima `.vibecoder/` y documentación pública bajo `doc/`, valida y crea un
+commit local. La publicación de rama y el PR permanecen diferidos a M03.4.
 
 ## Criterio de aceptación
 

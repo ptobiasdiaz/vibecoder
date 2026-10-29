@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import hashlib
 import json
 import os
 from dataclasses import asdict, dataclass, is_dataclass
@@ -19,12 +20,15 @@ from .domain import (
     BootstrapCommentStatus,
     BootstrapStatus,
     BootstrapWorkflow,
+    GitConfiguration,
+    GitConfigurationStatus,
     ProjectStatus,
     TaskStatus,
 )
 from .errors import ConflictError, NotFoundError, ValidationError
 from .github import GitHubConfig, GitHubError, GitHubHttpClient
 from .github_service import GitHubRegistryService
+from .git_config import GitConfigurationService
 from .runtime_config import load_account_configs
 from .service import OrchestratorCore
 from .sqlite import SQLiteRepository
@@ -36,7 +40,11 @@ Ayudas a definir un proyecto nuevo preguntando por objetivos, requisitos, restri
 y arquitectura. Mantén una conversación progresiva. No asumas decisiones no
 confirmadas y distingue claramente propuestas de decisiones aprobadas. No generes
 código ni solicites crear o modificar archivos, ramas, commits o Pull Requests.
-Responde en Markdown legible y céntrate en el mensaje humano actual."""
+Debes presentar y negociar la configuración Git estructurada proporcionada por el
+orquestador: explica sus decisiones, admite cambios y alternativas, pero no la declares
+confirmada por tu cuenta. Solo un bloque `confirmation=confirmed` publicado por un
+desarrollador autorizado puede confirmarla. Responde en Markdown legible y céntrate
+en el mensaje humano actual."""
 
 
 def _now() -> str:
@@ -70,6 +78,9 @@ class BootstrapService:
         self.authorized_users = {value.casefold() for value in authorized_users if value.strip()}
         if not self.authorized_users:
             raise ValidationError("se requiere al menos un usuario GitHub autorizado")
+        self.git_configurations = GitConfigurationService(
+            self.repository, github, authorized_users=authorized_users
+        )
 
     def start(
         self,
@@ -80,7 +91,10 @@ class BootstrapService:
     ) -> BootstrapWorkflow:
         existing = self.repository.find_one("bootstrap_workflows", project_id=project_id)
         if existing:
-            return self._workflow(existing)
+            workflow = self._workflow(existing)
+            if workflow.status is not BootstrapStatus.APPROVED:
+                self.git_configurations.ensure_default_proposal(workflow.id)
+            return workflow
         project = self.core.get_project(project_id)
         if project.status not in {
             ProjectStatus.UNINITIALIZED,
@@ -147,6 +161,7 @@ class BootstrapService:
             if existing is None:
                 raise
             return self._workflow(existing)
+        self.git_configurations.ensure_default_proposal(workflow_id)
         return self.get_workflow(workflow_id)
 
     def get_workflow(self, workflow_id: str) -> BootstrapWorkflow:
@@ -190,6 +205,21 @@ class BootstrapService:
                 str(item["body"]),
                 int(item["id"]) in own_comment_ids,
             )
+            if status is BootstrapCommentStatus.RECEIVED and self.git_configurations.contains_block(
+                str(item["body"])
+            ):
+                try:
+                    self.git_configurations.confirm_block(
+                        workflow.id,
+                        str(item["body"]),
+                        author=login,
+                        comment_id=int(item["id"]),
+                    )
+                    status = BootstrapCommentStatus.IGNORED
+                    reason = "configuración Git confirmada de forma estructurada"
+                except (ValidationError, ConflictError) as exc:
+                    status = BootstrapCommentStatus.REJECTED
+                    reason = f"configuración Git inválida: {exc}"
             now = _now()
             try:
                 self.repository.insert(
@@ -373,6 +403,15 @@ class BootstrapService:
         successful = [item for item in attempts if item.status.value == "SUCCEEDED"]
         if not successful or successful[-1].result_text is None:
             raise ConflictError("tarea completada sin resultado persistido")
+        comment = self._comment(self.repository.get("bootstrap_comments", comment_id))
+        try:
+            self.git_configurations.record_proposal_block(
+                comment.workflow_id, successful[-1].result_text
+            )
+        except (ValidationError, ConflictError):
+            # La respuesta sigue siendo visible, pero un bloque inválido nunca puede
+            # convertirse en configuración confirmada o aprobada.
+            pass
         self.repository.update(
             "bootstrap_comments", comment_id,
             {
@@ -450,14 +489,18 @@ class BootstrapService:
             and str(actor.get("login", "")).casefold() in self.authorized_users
             and str(actor.get("type", "")).casefold() != "bot"
         )
-        if not verified or self._has_unfinished_comments(workflow.id):
+        confirmed = self.git_configurations.latest(
+            workflow.id, GitConfigurationStatus.CONFIRMED
+        )
+        if not verified or confirmed is None or self._has_unfinished_comments(workflow.id):
             self.repository.update(
                 "bootstrap_workflows", workflow.id,
                 {"status": BootstrapStatus.APPROVAL_PENDING.value, "updated_at": _now()},
             )
             return self.get_workflow(workflow.id)
         event = latest
-        frozen = self._freeze_specification(workflow.id)
+        frozen = self._freeze_specification(workflow.id, confirmed)
+        specification_hash = hashlib.sha256(frozen.encode("utf-8")).hexdigest()
         now = _now()
         with self.repository.transaction():
             self.repository.update(
@@ -474,6 +517,12 @@ class BootstrapService:
             project = self.core.get_project(workflow.project_id)
             if project.status is ProjectStatus.BOOTSTRAPPING:
                 self.core.transition_project(project.id, ProjectStatus.DESIGNING)
+            self.git_configurations.approve(
+                workflow.id,
+                specification_hash=specification_hash,
+                approved_by=str(actor["login"]),
+                approved_event_id=int(event["id"]),
+            )
         return self.get_workflow(workflow.id)
 
     def _has_unfinished_comments(self, workflow_id: str) -> bool:
@@ -488,13 +537,18 @@ class BootstrapService:
             for item in self.list_comments(workflow_id)
         )
 
-    def _freeze_specification(self, workflow_id: str) -> str:
+    def _freeze_specification(
+        self, workflow_id: str, confirmed: GitConfiguration
+    ) -> str:
         lines = ["# Especificación conversacional aprobada", ""]
         for item in self.list_comments(workflow_id):
             if item.status is BootstrapCommentStatus.COMPLETED:
                 lines.extend(
                     [f"## {item.author_login}", "", item.body, "", "## Agente principal", "", item.response_text or "", ""]
                 )
+        lines.extend(
+            ["## Configuración Git confirmada", "", self.git_configurations.render(confirmed), ""]
+        )
         return "\n".join(lines).rstrip() + "\n"
 
     def _classify_comment(
@@ -540,6 +594,7 @@ class BootstrapService:
         for comment in self.list_comments(workflow.id):
             if (
                 comment.status is not BootstrapCommentStatus.IGNORED
+                or comment.rejection_reason != "comentario del bot"
                 or comment.author_type.casefold() == "bot"
                 or comment.author_login.casefold() not in self.authorized_users
                 or comment.github_comment_id in own_comment_ids
@@ -566,9 +621,15 @@ class BootstrapService:
         body = comment.body.lstrip()
         if body.splitlines() and body.splitlines()[0].strip() == "/agent main":
             body = "\n".join(body.splitlines()[1:]).lstrip()
+        config = self.git_configurations.latest(comment.workflow_id)
+        config_context = (
+            "\n\n## Configuración Git estructurada vigente\n\n"
+            + self.git_configurations.render(config, confirmation="proposed")
+            if config else ""
+        )
         return (
             f"{BOOTSTRAP_INSTRUCTIONS}\n\n"
-            f"Mensaje de @{comment.author_login}:\n\n{body}"
+            f"Mensaje de @{comment.author_login}:\n\n{body}{config_context}"
         )
 
     def _get_or_create_principal(self, project_id: str):
@@ -646,9 +707,15 @@ def _parser() -> argparse.ArgumentParser:
     start = sub.add_parser("start")
     start.add_argument("project_id")
     start.add_argument("--description")
-    for name in ("status", "poll", "retry", "recover", "errors"):
+    for name in (
+        "status", "poll", "retry", "recover", "errors", "git-proposed",
+        "git-approved", "git-check", "git-operations",
+    ):
         command = sub.add_parser(name)
         command.add_argument("project_id")
+    validate = sub.add_parser("git-validate")
+    validate.add_argument("project_id")
+    validate.add_argument("--file", required=True, type=Path)
     return parser
 
 
@@ -681,7 +748,12 @@ def main() -> int:
         else:
             workflow = service.get_project_workflow(args.project_id)
             if args.command == "status":
-                result = {"workflow": asdict(workflow), "comments": [asdict(item) for item in service.list_comments(workflow.id)]}
+                result = {
+                    "workflow": asdict(workflow),
+                    "comments": [asdict(item) for item in service.list_comments(workflow.id)],
+                    "git_proposed": _jsonable(service.git_configurations.latest(workflow.id)),
+                    "git_approved": _jsonable(service.git_configurations.approved(workflow.id)),
+                }
             elif args.command == "poll":
                 if not args.accounts:
                     raise SystemExit("--accounts es obligatorio con poll")
@@ -690,6 +762,42 @@ def main() -> int:
                 result = service.retry_publications(workflow.id)
             elif args.command == "recover":
                 result = service.recover(workflow.id)
+            elif args.command == "git-proposed":
+                result = service.git_configurations.latest(workflow.id)
+            elif args.command == "git-approved":
+                result = service.git_configurations.approved(workflow.id)
+            elif args.command == "git-check":
+                config = service.git_configurations.approved(workflow.id)
+                if config is None:
+                    raise SystemExit("no existe configuración Git aprobada")
+                result = service.git_configurations.check_remote(config.id)
+            elif args.command == "git-operations":
+                config = service.git_configurations.approved(workflow.id)
+                if config is None:
+                    raise SystemExit("no existe configuración Git aprobada")
+                result = {
+                    "configuration_id": config.id,
+                    "configuration_hash": config.configuration_hash,
+                    "authorized_operations": config.authorized_operations,
+                }
+            elif args.command == "git-validate":
+                blocks = service.git_configurations.parse_blocks(
+                    args.file.read_text(encoding="utf-8")
+                )
+                if len(blocks) != 1:
+                    raise SystemExit("el archivo debe contener exactamente un bloque Git")
+                payload = service.git_configurations.validate(
+                    blocks[0].model_dump(exclude={"confirmation"})
+                )
+                if payload.repository_id != workflow.repository_id:
+                    raise SystemExit("la configuración pertenece a otro repositorio")
+                result = {
+                    "valid": True,
+                    "configuration_hash": service.git_configurations.hash_payload(payload),
+                    "canonical_json": json.loads(
+                        service.git_configurations.canonical_json(payload)
+                    ),
+                }
             else:
                 result = service.errors(workflow.id)
         print(json.dumps(_jsonable(result), indent=2, default=str, ensure_ascii=False))

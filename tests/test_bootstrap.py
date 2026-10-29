@@ -12,6 +12,7 @@ from vibecoder.codex_executor import AccountRuntimeConfig, CodexExecutorError, E
 from vibecoder.domain import (
     BootstrapCommentStatus,
     BootstrapStatus,
+    GitConfigurationStatus,
     ProjectStatus,
     SessionPersistenceState,
 )
@@ -106,6 +107,18 @@ class BootstrapTests(unittest.IsolatedAsyncioTestCase):
         return item
 
     def approve(self, workflow, *, login: str = "alice", event_id: int = 9001) -> None:
+        if self.service.git_configurations.latest(
+            workflow.id, GitConfigurationStatus.CONFIRMED
+        ) is None:
+            proposal = self.service.git_configurations.latest(workflow.id)
+            self.human_comment(
+                workflow,
+                self.service.git_configurations.render(proposal, confirmation="confirmed"),
+                login="alice",
+                comment_id=4900,
+                created_at="2026-10-28T00:59:00Z",
+            )
+            self.service.poll(workflow.id)
         issue = self.remote.get_issue("acme", "alpha", workflow.issue_number)
         issue["labels"] = [self.remote.labels[workflow.approval_label]]
         self.remote.events.setdefault(workflow.issue_number, []).append(

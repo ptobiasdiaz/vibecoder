@@ -97,6 +97,11 @@ class RepositoryData(_RemoteModel):
     permissions: RepositoryPermissions = Field(default_factory=RepositoryPermissions)
 
 
+class BranchData(_RemoteModel):
+    name: str
+    commit: Mapping[str, Any]
+
+
 class IssueData(_RemoteModel):
     id: int
     node_id: str
@@ -187,6 +192,16 @@ class GitHubHttpClient:
         if not isinstance(data, list):
             raise GitHubProtocolError("GitHub commits response is not a list")
         return not data
+
+    def get_branch(self, owner: str, name: str, branch: str) -> Mapping[str, Any]:
+        if not branch.strip() or ".." in branch:
+            raise ValueError("invalid GitHub branch")
+        return self._validated(
+            "GET",
+            f"{self._repo_path(owner, name)}/branches/{quote(branch, safe='')}",
+            BranchData,
+            repo=True,
+        )
 
     def list_issues(self, owner: str, name: str, *, state: str = "open") -> Sequence[Mapping[str, Any]]:
         items = self._validated_list(

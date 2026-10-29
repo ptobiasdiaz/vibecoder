@@ -12,8 +12,10 @@ los comentarios y marcadores HTML son entradas externas no confiables.
 
 1. El polling usa el ID estable del comentario, no timestamps, como identidad. La
    fecha remota solo ordena y el ID rompe empates.
-2. Los autores autorizados se configuran localmente mediante una lista explícita. La
-   identidad del bot se obtiene con la credencial activa y sus comentarios se ignoran.
+2. Los autores autorizados se configuran localmente mediante una lista explícita. Los
+   actores tipo `Bot` se ignoran. Con un token personal, las respuestas propias se
+   correlacionan por el ID remoto de una operación persistida; no se ignora a una
+   persona solo porque comparta el login de la credencial activa.
 3. Cada comentario aceptado crea una tarea normal de M02. Un estado persistente
    `RUNNING` reclama el comentario; otros procesos responden `BUSY`.
 4. La publicación es una fase posterior a Codex. Una respuesta persistida puede

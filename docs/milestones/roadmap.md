@@ -49,14 +49,31 @@ Se validó en GitHub real una intervención humana, su turno Codex persistido y 
 respuesta publicada. La segunda intervención live tras reiniciar sigue pendiente de
 observación. Sin generación de código ni Pull Requests. Véase [M03.2](M03.2.md).
 
-### M03.3 — Protocolo de conversación y preguntas
+### M03.3 — Workspaces Git y generación inicial
 
-Comentarios, `/agent`, `/reply`, preguntas pendientes y correlación de respuestas.
+**Estado (2026-10-29): COMPLETADO; FLUJO LIVE VALIDADO.** Workspaces Git aislados,
+repositorios con historia o vacíos, rama bootstrap, generación Codex mediante M02,
+estructura `.vibecoder/`/`doc/`, jerarquía `AGENTS.md`, validación y commit local. La
+prueba real confirmó generación, commit local y recuperación tras reabrir la
+persistencia. Sin push ni Pull Requests. Véase [M03.3](M03.3.md).
 
-### M03.4 — Procesamiento recuperable de eventos
+### M03.3.1 — Configuración Git negociada y aprobada
 
-Ingesta de eventos GitHub, deduplicación, reanudación de sesiones y control de
-concurrencia, manteniendo reconciliación conservadora.
+**Estado (2026-10-29): COMPLETADO; FLUJO LIVE VALIDADO.** Propuesta estructurada,
+confirmación humana, aprobación conjunta atribuida, hash reproducible, snapshot remoto
+y consumo obligatorio por generaciones nuevas. La prueba real confirmó negociación,
+persistencia y compatibilidad remota de la configuración aprobada. Las generaciones
+históricas se preservan sin ampliar su autorización. Sin push ni Pull Requests. Véase
+[M03.3.1](M03.3.1.md).
+
+### M03.4 — Publicación y Pull Request de bootstrap
+
+Publicación recuperable de la rama local validada, preparación de la rama base técnica
+cuando el remoto aprobado esté vacío, creación idempotente del Pull Request y
+reconciliación antes de repetir efectos remotos. Solo podrá ejecutar las operaciones
+enumeradas por la configuración aprobada en M03.3.1; revisión y merge seguirán siendo
+humanos. Webhooks, `/reply` y el procesamiento general de eventos permanecen para un
+hito posterior.
 
 ## M04 — Registro dinámico y especialistas
 

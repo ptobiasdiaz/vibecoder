@@ -60,6 +60,27 @@ class GitHubRegistryService:
             raise GitHubPermissionError("GitHub identity cannot write to the registered repository")
         return {str(key): bool(value) for key, value in permissions.items()}
 
+    def observe_repository_state(self, repository_id: str) -> Mapping[str, Any]:
+        repo = self.get_repository(repository_id)
+        remote = self.client.get_repository(repo.owner_login, repo.name)
+        empty = self.client.is_repository_empty(repo.owner_login, repo.name)
+        default_branch = str(remote["default_branch"]) if remote.get("default_branch") else None
+        head_sha: str | None = None
+        if not empty:
+            if not default_branch:
+                raise ValidationError("repositorio con commits sin rama por defecto")
+            branch = self.client.get_branch(repo.owner_login, repo.name, default_branch)
+            commit = branch.get("commit")
+            if not isinstance(commit, Mapping) or not commit.get("sha"):
+                raise ValidationError("respuesta GitHub sin commit de la rama por defecto")
+            head_sha = str(commit["sha"])
+        return {
+            "github_id": int(remote["id"]),
+            "is_empty": empty,
+            "default_branch": default_branch,
+            "head_sha": head_sha,
+        }
+
     def register_repository(self, project_id: str, owner: str, name: str) -> GitHubRepository:
         self.core.get_project(project_id)
         remote = self.client.get_repository(owner, name)

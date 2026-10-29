@@ -27,7 +27,10 @@ Permitir que un equipo dirija proyectos mediante GitHub Issues. Un agente princi
 
 M00, M01, M02 y M03.2 están completados. M03.1 incorpora el adaptador REST de GitHub
 y el registro persistente de repositorios. M03.2 valida la conversación de bootstrap
-live mediante polling, agente principal persistente y aprobación atribuida, todavía
-sin webhooks, generación de código, ramas, Pull Requests, Telegram ni despliegue. Véanse
+live mediante polling, agente principal persistente y aprobación atribuida. M03.3,
+también validado live, incorpora workspaces Git aislados, generación inicial,
+`.vibecoder/`, jerarquía `AGENTS.md`, validación y commits locales, todavía sin push,
+Pull Requests, webhooks, Telegram ni despliegue. M03.3.1 añade configuración Git
+negociada, aprobación conjunta y detección de deriva. Véanse
 [M00](docs/milestones/M00.md), [M01](docs/milestones/M01.md) y
 [M02](docs/milestones/M02.md).

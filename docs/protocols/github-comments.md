@@ -53,3 +53,6 @@ Mecanismo exacto de correlación de preguntas cuando un comentario contiene vari
   opaco de idempotencia gestionado por el adaptador.
 - Tras aprobar el bootstrap, comentarios posteriores se registran pero no alteran la
   especificación congelada.
+- La configuración Git solo se confirma con un único bloque JSON
+  `vibecoder-git-config` que declare `confirmation: confirmed` y proceda de un usuario
+  autorizado. La prosa, los ejemplos y los bloques del agente son propuestas.

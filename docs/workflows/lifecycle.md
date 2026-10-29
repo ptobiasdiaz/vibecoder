@@ -34,3 +34,8 @@ En M03.2, un comentario pasa por `RECEIVED → QUEUED → RUNNING → RESPONSE_P
 COMPLETED`. `IGNORED` representa ecos del bot; `REJECTED`, actor no autorizado o directiva inválida;
 `BLOCKED` conserva una ejecución fallida o incierta. La publicación se reintenta desde
 `RESPONSE_PENDING` sin volver a ejecutar Codex.
+
+En M03.3, una generación pasa por `PREPARING_WORKSPACE → PENDING → GENERATING →
+VALIDATING → READY_TO_PUBLISH`. Un fallo de validación o ejecución incierta conserva
+el workspace en `BLOCKED`; nunca reenvía automáticamente el prompt ni crea un segundo
+commit.

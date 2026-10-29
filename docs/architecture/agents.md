@@ -25,3 +25,8 @@ El principal selecciona los especialistas que intervienen en cada Issue. Los esp
 ## Memoria
 
 Documentar arquitectura, invariantes, interfaces, decisiones, riesgos y tareas pendientes. Los planes y decisiones de un Issue se guardan en su rama de trabajo y se revisan con el PR. La compactación de sesiones no debe depender únicamente del historial de conversación.
+
+Las reglas comunes están en `AGENTS.md` y las específicas en
+`.vibecoder/agents/<agent-id>/AGENTS.md`. Seguridad del orquestador y reglas globales
+prevalecen sobre instrucciones específicas, memoria y tarea. M03.3 registra hashes de
+las instrucciones usadas y bloquea conflictos explícitos; no crea especialistas.

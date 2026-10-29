@@ -115,6 +115,27 @@ _COLUMNS = {
             "response_github_comment_id", "created_at", "updated_at",
         }
     ),
+    "generation_workflows": frozenset(
+        {
+            "id", "project_id", "bootstrap_workflow_id", "repository_id",
+            "approved_by", "approved_event_id", "specification_hash",
+            "workspace_path", "remote_url", "base_branch", "bootstrap_branch",
+            "base_commit", "git_configuration_id", "git_configuration_hash",
+            "task_id", "session_id", "status", "instruction_versions_json",
+            "generated_instruction_versions_json", "validation_result_json",
+            "commit_hash", "blocked_reason", "created_at", "updated_at",
+        }
+    ),
+    "git_configurations": frozenset(
+        {
+            "id", "workflow_id", "repository_id", "revision", "status",
+            "schema_version", "config_json", "configuration_hash",
+            "source_comment_id", "observed_github_id", "observed_is_empty",
+            "observed_default_branch", "observed_head_sha", "specification_hash",
+            "approved_by", "approved_event_id", "applied_at", "created_at",
+            "updated_at",
+        }
+    ),
 }
 
 

@@ -56,6 +56,9 @@ class FakeGitHubClient:
     def is_repository_empty(self, owner: str, name: str) -> bool:
         return self.empty
 
+    def get_branch(self, owner: str, name: str, branch: str) -> Mapping[str, Any]:
+        return {"name": branch, "commit": {"sha": "a" * 40}}
+
     def list_issues(self, owner: str, name: str, *, state: str = "open") -> Sequence[Mapping[str, Any]]:
         return [item for item in self.issues if state == "all" or item["state"] == state]
 
@@ -263,6 +266,16 @@ class GitHubHttpClientTests(unittest.TestCase):
         client = self.client(lambda request: httpx.Response(409, json={"message": "Git Repository is empty."}))
         with client:
             self.assertTrue(client.is_repository_empty("acme", "empty"))
+
+    def test_reads_default_branch_head_with_validated_response(self) -> None:
+        client = self.client(
+            lambda request: httpx.Response(
+                200, json={"name": "main", "commit": {"sha": "a" * 40}}
+            )
+        )
+        with client:
+            branch = client.get_branch("acme", "alpha", "main")
+        self.assertEqual(branch["commit"]["sha"], "a" * 40)
 
 
 if __name__ == "__main__":

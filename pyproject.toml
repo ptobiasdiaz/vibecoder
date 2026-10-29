@@ -17,6 +17,7 @@ vibecoder-m00-diagnose = "m00_codex.diagnostic:main"
 vibecoder-worker = "vibecoder.worker:main"
 vibecoder-bootstrap = "vibecoder.bootstrap:main"
 vibecoder-live-setup = "vibecoder.live_setup:main"
+vibecoder-generate = "vibecoder.generation:main"
 
 [tool.setuptools.packages.find]
 include = ["m00_codex*", "vibecoder*"]

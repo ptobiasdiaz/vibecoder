@@ -11,6 +11,8 @@
 - **Worker local**: selecciona una tarea persistente, coordina una ejecución secuencial
   y cierra recursos; no implementa transporte ni autenticación.
 - **Workers**: ejecución bajo demanda y aislada, con worktrees por Issue y entornos de compilación controlados.
+- **Git local**: workspaces por UUID de proyecto, ramas bootstrap, inspección,
+  validación y commits locales sin efectos remotos durante M03.3.
 - **Persistencia**: proyectos, cuentas, sesiones, turnos, preguntas, trabajos, eventos y estado de recuperación.
 - **Telegram**: alertas y consultas de estado; no sustituye GitHub para aprobaciones.
 - **Métricas**: endpoint compatible con Prometheus. La supervisión externa de VM/host queda fuera del alcance.
@@ -26,6 +28,10 @@
 7. El orquestador ejecuta reglas de control; no interpreta decisiones técnicas por cuenta propia.
 8. Un turno por sesión a la vez. Paralelismo entre sesiones sujeto a recursos, dependencias y límites de cuenta.
 9. Solo humanos autorizados aprueban implementación y merge.
+10. El contexto versionado interno vive bajo `.vibecoder/`; `AGENTS.md` raíz es la
+    excepción compatible con Codex y `doc/` contiene documentación pública.
+11. Rama principal, inicialización y publicación son configuración estructurada; no se
+    infieren de prosa y se aprueban junto con la especificación.
 
 ## Límites de confianza
 

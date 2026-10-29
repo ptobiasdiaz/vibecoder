@@ -68,25 +68,50 @@ class LocalWorker:
             return WorkerOutcome(None, None, "IDLE", "no hay tareas PENDING")
         return await self._run_task(task)
 
-    async def run_task(self, task_id: str) -> WorkerOutcome:
+    async def run_task(
+        self,
+        task_id: str,
+        *,
+        session_id: str | None = None,
+        runtime_config: AccountRuntimeConfig | None = None,
+    ) -> WorkerOutcome:
         """Ejecuta una tarea concreta sin competir con otras colas de aplicación."""
         task = self.core.get_task(task_id)
         if task.status is not TaskStatus.PENDING:
             raise ConflictError("la ejecución dirigida requiere una tarea PENDING")
-        return await self._run_task(task)
+        return await self._run_task(task, session_id=session_id, runtime_config=runtime_config)
 
-    async def _run_task(self, task: Task) -> WorkerOutcome:
+    async def _run_task(
+        self,
+        task: Task,
+        *,
+        session_id: str | None = None,
+        runtime_config: AccountRuntimeConfig | None = None,
+    ) -> WorkerOutcome:
         project = self.core.get_project(task.project_id)
         agent = self.core.get_agent(task.agent_id)
         account = self.core.get_account(project.codex_account_id)
-        config = self.account_configs.get(account.id)
+        config = runtime_config or self.account_configs.get(account.id)
         if not task.prompt:
             raise ValidationError(f"la tarea {task.id} no tiene prompt")
         if config is None or config.account_id != account.id:
             raise ValidationError(f"falta configuración runtime para la cuenta {account.id}")
 
         attempt = self.core.start_attempt(task.id)
-        session = self.core.get_or_create_session(agent.id)
+        session = (
+            self.core.get_session(session_id)
+            if session_id is not None
+            else self.core.get_or_create_session(agent.id)
+        )
+        if session.agent_id != agent.id:
+            self.core.finish_attempt(
+                attempt.id,
+                AttemptStatus.FAILED,
+                error_code="SESSION_AGENT_MISMATCH",
+                error_category="configuration",
+                error_message="la sesión pertenece a otro agente",
+            )
+            raise ConflictError("la sesión pertenece a otro agente")
         if session.codex_account_id != account.id:
             self.core.finish_attempt(
                 attempt.id,

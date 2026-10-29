@@ -22,6 +22,11 @@ Entidades iniciales:
   evento verificables, y especificación conversacional congelada.
 - `BootstrapComment`: comentario remoto estable, autor, orden, autorización, tarea M02,
   respuesta persistida y comentario de respuesta confirmado.
+- `GenerationWorkflow`: aprobación y hash de especificación usados, workspace y rama
+  aislados, sesión operativa, tarea M02, versiones de instrucciones, validación y
+  commit local preparado.
+- `GitConfiguration`: revisión propuesta, confirmada, aprobada o aplicada; decisiones
+  Git tipadas, hash canónico, snapshot remoto, especificación y evento autorizador.
 - `IssueWorkflow`: issue ID, estado, revisión de especificación aprobada, responsables, versión de etiquetas.
 - `Execution`: ID, sesión, evento origen, prompt_comment_id, response_comment_id, estado, intentos, timestamps, consumo.
 - `Question`: ID estable, Issue/PR, autor lógico, destinatario, comentario origen, comentario respuesta, estado.

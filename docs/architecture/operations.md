@@ -8,6 +8,10 @@ Varios agentes pueden compartir una cuenta manteniendo threads independientes. C
 cuenta dispone de su propio entorno de credenciales y sesiones mediante `CODEX_HOME` o
 el mecanismo oficial equivalente de la versión desplegada. El gestor de autenticación,
 el gestor de sesiones y el ejecutor son componentes lógicamente desacoplados.
+Un especialista puede usar una cuenta distinta; cambiarla exige suspenderlo. Sus
+sesiones históricas conservan la cuenta original y no se reanudan bajo otro
+`CODEX_HOME`: la identidad lógica permanece estable y la siguiente sesión compatible
+se crea de forma independiente.
 
 Se contemplan login persistente con ChatGPT, API key y access tokens de Codex cuando
 el tipo de cuenta y la versión los soporten. Los agentes reutilizan la autenticación

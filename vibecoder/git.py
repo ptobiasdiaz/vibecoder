@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
@@ -82,6 +83,46 @@ class GitAdapter:
         else:
             self._run(("switch", "--orphan", branch), cwd=workspace)
 
+    def create_empty_base(
+        self,
+        workspace: Path,
+        branch: str,
+        *,
+        message: str = "chore: initialize repository for bootstrap review",
+    ) -> str:
+        """Crea de forma reproducible un commit raíz vacío exclusivamente local."""
+        self._validate_branch(branch)
+        if self.branch_exists(workspace, branch):
+            self._run(("switch", branch), cwd=workspace)
+            status = self.status(workspace)
+            if status.head is None or status.changes:
+                raise ConflictError("la rama base local existente no es reutilizable")
+            return status.head
+        self._run(("switch", "--orphan", branch), cwd=workspace)
+        self._run(
+            (
+                "-c", "user.name=vibecoder",
+                "-c", "user.email=vibecoder@localhost",
+                "-c", "core.hooksPath=/dev/null",
+                "commit", "--allow-empty", "--no-gpg-sign", "--no-verify", "-m", message,
+            ),
+            cwd=workspace,
+            extra_env={
+                "GIT_AUTHOR_DATE": "2000-01-01T00:00:00Z",
+                "GIT_COMMITTER_DATE": "2000-01-01T00:00:00Z",
+            },
+        )
+        return self._run(("rev-parse", "HEAD"), cwd=workspace).stdout.strip()
+
+    def create_branch_from_local(self, workspace: Path, branch: str, base: str) -> None:
+        self._validate_branch(branch)
+        self._validate_branch(base)
+        if self.branch_exists(workspace, branch):
+            if self.current_branch(workspace) != branch:
+                raise ConflictError(f"la rama local ya existe: {branch}")
+            return
+        self._run(("switch", "-c", branch, base), cwd=workspace)
+
     def branch_exists(self, workspace: Path, branch: str) -> bool:
         self._validate_branch(branch)
         result = self._run(
@@ -143,7 +184,8 @@ class GitAdapter:
             (
                 "-c", f"user.name={author_name}",
                 "-c", f"user.email={author_email}",
-                "commit", "--no-gpg-sign", "-m", message,
+                "-c", "core.hooksPath=/dev/null",
+                "commit", "--no-gpg-sign", "--no-verify", "-m", message,
             ),
             cwd=workspace,
         )
@@ -155,16 +197,92 @@ class GitAdapter:
         )
         return result.returncode == 0
 
+    def parent(self, workspace: Path, commit: str) -> str | None:
+        result = self._run(
+            ("rev-parse", f"{commit}^"), cwd=workspace, allow=(0, 128)
+        )
+        return result.stdout.strip() if result.returncode == 0 else None
+
+    def tracked_file_at_head(self, workspace: Path, path: str) -> str | None:
+        if not path or path.startswith(("/", "../")) or "\\" in path:
+            raise ValidationError("ruta Git no válida")
+        result = self._run(
+            ("show", f"HEAD:{path}"), cwd=workspace, allow=(0, 128)
+        )
+        return result.stdout if result.returncode == 0 else None
+
+    def push_branch(
+        self,
+        workspace: Path,
+        local_ref: str,
+        remote_branch: str,
+        *,
+        token: str | None,
+    ) -> None:
+        """Push sin force, prompts ni token en URL, argv o configuración persistente."""
+        self._validate_branch(local_ref)
+        self._validate_branch(remote_branch)
+        status = self.status(workspace)
+        if status.changes:
+            raise ConflictError("el workspace tiene cambios sin confirmar")
+        env: dict[str, str] = {
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+        }
+        if token is None:
+            self._run(
+                (
+                    "-c", "credential.helper=", "-c", "core.hooksPath=/dev/null",
+                    "push", "--porcelain", "--no-verify", "origin",
+                    f"{local_ref}:refs/heads/{remote_branch}",
+                ),
+                cwd=workspace,
+                extra_env=env,
+            )
+            return
+        if not token.strip():
+            raise ValidationError("token GitHub vacío")
+        with tempfile.TemporaryDirectory(prefix="vibecoder-askpass-") as directory:
+            script = Path(directory) / "askpass"
+            script.write_text(
+                "#!/bin/sh\ncase \"$1\" in *Username*) printf '%s\\n' x-access-token;; "
+                "*) printf '%s\\n' \"$VIBECODER_GIT_TOKEN\";; esac\n",
+                encoding="utf-8",
+            )
+            script.chmod(0o700)
+            env.update(
+                {
+                    "GIT_ASKPASS": str(script),
+                    "VIBECODER_GIT_TOKEN": token,
+                    "GIT_TERMINAL_PROMPT": "0",
+                }
+            )
+            try:
+                self._run(
+                    (
+                        "-c", "credential.helper=", "-c", "core.hooksPath=/dev/null",
+                        "push", "--porcelain", "--no-verify", "origin",
+                        f"{local_ref}:refs/heads/{remote_branch}",
+                    ),
+                    cwd=workspace,
+                    extra_env=env,
+                    redactions=(token,),
+                )
+            finally:
+                script.unlink(missing_ok=True)
+
     def _run(
         self,
         args: Sequence[str],
         *,
         cwd: Path | None = None,
         allow: tuple[int, ...] = (0,),
+        extra_env: dict[str, str] | None = None,
+        redactions: Sequence[str] = (),
     ) -> subprocess.CompletedProcess[str]:
         if cwd is not None:
             cwd = cwd.resolve(strict=True)
-        env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+        env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", **(extra_env or {})}
         result = subprocess.run(
             (self.executable, *args),
             cwd=cwd,
@@ -176,6 +294,9 @@ class GitAdapter:
         )
         if result.returncode not in allow:
             message = result.stderr.strip() or result.stdout.strip() or "git falló"
+            for secret in redactions:
+                if secret:
+                    message = message.replace(secret, "[REDACTED]")
             raise GitError(message)
         return result
 

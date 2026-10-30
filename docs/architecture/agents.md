@@ -12,6 +12,12 @@
 
 La configuración versionada del repositorio declara identidades, rutas de documentación y responsabilidades. Un agente no se autoriza ni cambia permisos editando un comentario. Altas, cambios y retiradas del registro requieren PR y validación humana.
 
+M04.1 materializa esta separación mediante una identidad `Agent` estable, un registro
+de especialista con ciclo `PROPOSED/ACTIVE/SUSPENDED/RETIRED` y revisiones inmutables
+de configuración. La activación local solo acepta instrucciones ya integradas en el
+`HEAD` limpio de la rama principal. El flujo de aprobación y PR remoto se incorpora en
+M04.2/M04.3.
+
 Separar identidad lógica (`backend-z80`), sesión operativa de Codex y memoria duradera
 versionada. Un thread vacío aún no es una sesión recuperable; después de un turno real
 completado puede reanudarse tras reiniciar App Server. Una sesión puede compactarse o
@@ -30,3 +36,5 @@ Las reglas comunes están en `AGENTS.md` y las específicas en
 `.vibecoder/agents/<agent-id>/AGENTS.md`. Seguridad del orquestador y reglas globales
 prevalecen sobre instrucciones específicas, memoria y tarea. M03.3 registra hashes de
 las instrucciones usadas y bloquea conflictos explícitos; no crea especialistas.
+M04.1 carga explícitamente el archivo específico, conserva el hash del global sin
+duplicar su texto y bloquea cualquier deriva respecto de la revisión activa.

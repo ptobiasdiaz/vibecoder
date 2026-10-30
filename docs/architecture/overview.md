@@ -6,6 +6,8 @@
   comentarios y etiquetas. M03.1 usa tokens externos; GitHub App y webhooks se
   incorporarán en subhitos posteriores.
 - **Orquestador**: máquina de estados, enrutamiento, prompts, registro de agentes, coordinación, autorización, idempotencia y planificación.
+- **Gestor de especialistas**: identidad persistente, configuración versionada,
+  cuenta, ciclo de vida y auditoría; reutiliza sesiones y tareas del núcleo.
 - **Codex runtime**: adaptador App Server para crear, reanudar, observar, reconciliar y
   cancelar turnos, aislado por cuenta.
 - **Worker local**: selecciona una tarea persistente, coordina una ejecución secuencial
@@ -13,6 +15,8 @@
 - **Workers**: ejecución bajo demanda y aislada, con worktrees por Issue y entornos de compilación controlados.
 - **Git local**: workspaces por UUID de proyecto, ramas bootstrap, inspección,
   validación y commits locales sin efectos remotos durante M03.3.
+- **Publicador remoto**: consume autorización y commit validados, registra intención,
+  publica sin force, reconcilia referencias/PR y activa solo tras merge humano.
 - **Persistencia**: proyectos, cuentas, sesiones, turnos, preguntas, trabajos, eventos y estado de recuperación.
 - **Telegram**: alertas y consultas de estado; no sustituye GitHub para aprobaciones.
 - **Métricas**: endpoint compatible con Prometheus. La supervisión externa de VM/host queda fuera del alcance.

@@ -56,3 +56,11 @@ Mecanismo exacto de correlación de preguntas cuando un comentario contiene vari
 - La configuración Git solo se confirma con un único bloque JSON
   `vibecoder-git-config` que declare `confirmation: confirmed` y proceda de un usuario
   autorizado. La prosa, los ejemplos y los bloques del agente son propuestas.
+
+## Perfil M03.4 — Pull Request de bootstrap
+
+- El cuerpo incluye Issue, generación, hashes, ramas y commit publicado.
+- Un marcador HTML de operación permite reconciliar una respuesta perdida, pero no
+  sustituye la verificación de repositorio, IDs, refs, SHA y autorización persistida.
+- Vibecoder no publica instrucciones para autoaprobar o fusionar el PR.
+- `closed` sin `merged=true` se trata como cierre sin integración y bloquea activación.

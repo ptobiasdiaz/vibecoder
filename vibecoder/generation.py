@@ -243,22 +243,27 @@ class GenerationService:
         )
         try:
             self.git.clone(remote, workspace)
-            base = self.git.default_branch(workspace)
+            remote_base = self.git.default_branch(workspace)
             if git_configuration.base_branch_exists:
-                if base != git_configuration.main_branch:
+                if remote_base != git_configuration.main_branch:
                     raise ConflictError("la rama por defecto remota cambió desde la aprobación")
-            elif base is not None:
+                self.git.create_branch(workspace, branch, remote_base)
+                base = remote_base
+                base_commit = self.git.status(workspace).head
+                if base_commit != git_configuration.observed_head_sha:
+                    raise ConflictError("el HEAD remoto cambió desde la aprobación")
+            elif remote_base is not None:
                 raise ConflictError("el repositorio dejó de estar vacío desde la aprobación")
-            self.git.create_branch(workspace, branch, base)
+            else:
+                base = git_configuration.main_branch
+                base_commit = self.git.create_empty_base(workspace, base)
+                self.git.create_branch_from_local(workspace, branch, base)
             dangerous = self.validator.dangerous_symlinks(workspace)
             if dangerous:
                 raise ValidationError(
                     "el repositorio contiene enlaces que escapan del workspace: "
                     + ", ".join(dangerous)
                 )
-            base_commit = self.git.status(workspace).head
-            if base_commit != git_configuration.observed_head_sha:
-                raise ConflictError("el HEAD remoto cambió desde la aprobación")
             self.repository.update(
                 "generation_workflows",
                 generation_id,

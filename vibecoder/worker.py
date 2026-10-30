@@ -22,7 +22,7 @@ from .codex_executor import (
     TransportError,
     classify_error,
 )
-from .domain import AccountStatus, AttemptStatus, SessionPersistenceState, Task, TaskStatus
+from .domain import AgentStatus, AccountStatus, AttemptStatus, SessionPersistenceState, Task, TaskStatus
 from .errors import ConflictError, ValidationError
 from .runtime_config import load_account_configs
 from .service import OrchestratorCore
@@ -59,7 +59,12 @@ class LocalWorker:
         self.executor_factory = executor_factory
 
     def select_task(self) -> Task | None:
-        tasks = [task for task in self.core.list_pending_tasks() if task.status is TaskStatus.PENDING]
+        tasks = [
+            task for task in self.core.list_pending_tasks()
+            if task.status is TaskStatus.PENDING
+            and self.core.get_agent(task.agent_id).status is AgentStatus.ACTIVE
+            and not self.core.is_managed_specialist(task.agent_id)
+        ]
         return tasks[0] if tasks else None
 
     async def run_once(self) -> WorkerOutcome:
@@ -88,9 +93,12 @@ class LocalWorker:
         session_id: str | None = None,
         runtime_config: AccountRuntimeConfig | None = None,
     ) -> WorkerOutcome:
-        project = self.core.get_project(task.project_id)
         agent = self.core.get_agent(task.agent_id)
-        account = self.core.get_account(project.codex_account_id)
+        if agent.status is not AgentStatus.ACTIVE:
+            raise ConflictError("el agente no está activo")
+        if self.core.is_managed_specialist(agent.id):
+            raise ConflictError("la ejecución de especialistas queda fuera de M04.1")
+        account = self.core.get_account(self.core.agent_account_id(agent.id))
         config = runtime_config or self.account_configs.get(account.id)
         if not task.prompt:
             raise ValidationError(f"la tarea {task.id} no tiene prompt")
@@ -170,7 +178,7 @@ class LocalWorker:
         if not attempt.codex_thread_id or not attempt.codex_turn_id:
             return WorkerOutcome(attempt.task_id, attempt.id, TaskStatus.WAITING, "faltan IDs Codex")
         task = self.core.get_task(attempt.task_id)
-        account_id = self.core.get_project(task.project_id).codex_account_id
+        account_id = self.core.agent_account_id(task.agent_id)
         config = self.account_configs.get(account_id)
         if config is None:
             raise ValidationError(f"falta configuración runtime para la cuenta {account_id}")

@@ -102,6 +102,22 @@ class BranchData(_RemoteModel):
     commit: Mapping[str, Any]
 
 
+class PullRequestData(_RemoteModel):
+    id: int
+    node_id: str
+    number: int
+    title: str
+    body: str | None = None
+    state: str
+    html_url: str
+    draft: bool = False
+    merged: bool = False
+    merge_commit_sha: str | None = None
+    mergeable: bool | None = None
+    head: Mapping[str, Any]
+    base: Mapping[str, Any]
+
+
 class IssueData(_RemoteModel):
     id: int
     node_id: str
@@ -201,6 +217,36 @@ class GitHubHttpClient:
             f"{self._repo_path(owner, name)}/branches/{quote(branch, safe='')}",
             BranchData,
             repo=True,
+        )
+
+    def list_pull_requests(
+        self, owner: str, name: str, *, state: str = "all",
+        head: str | None = None, base: str | None = None,
+    ) -> Sequence[Mapping[str, Any]]:
+        if state not in {"open", "closed", "all"}:
+            raise ValueError("invalid pull request state")
+        params: dict[str, Any] = {"state": state, "per_page": 100}
+        if head:
+            params["head"] = head
+        if base:
+            params["base"] = base
+        return self._validated_list(
+            "GET", f"{self._repo_path(owner, name)}/pulls", PullRequestData,
+            params=params, repo=True,
+        )
+
+    def get_pull_request(self, owner: str, name: str, number: int) -> Mapping[str, Any]:
+        return self._validated(
+            "GET", f"{self._repo_path(owner, name)}/pulls/{number}",
+            PullRequestData, repo=True,
+        )
+
+    def create_pull_request(
+        self, owner: str, name: str, title: str, body: str, head: str, base: str,
+    ) -> Mapping[str, Any]:
+        return self._validated(
+            "POST", f"{self._repo_path(owner, name)}/pulls", PullRequestData,
+            json={"title": title, "body": body, "head": head, "base": base}, repo=True,
         )
 
     def list_issues(self, owner: str, name: str, *, state: str = "open") -> Sequence[Mapping[str, Any]]:

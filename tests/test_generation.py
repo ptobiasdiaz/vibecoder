@@ -154,7 +154,13 @@ class GenerationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first.approved_event_id, 9001)
         self.assertEqual(len(first.specification_hash), 64)
         self.assertEqual(first.status, GenerationStatus.PENDING)
-        self.assertIsNone(first.base_branch)
+        self.assertEqual(first.base_branch, "main")
+        self.assertIsNotNone(first.base_commit)
+        self.assertEqual(
+            git("rev-parse", f"{first.commit_hash or 'HEAD'}^", cwd=Path(first.workspace_path))
+            if first.commit_hash else first.base_commit,
+            first.base_commit,
+        )
         applied = self.repository.get("git_configurations", first.git_configuration_id)
         self.assertEqual(applied["status"], "APPLIED")
 

@@ -29,8 +29,12 @@ M00, M01, M02 y M03.2 están completados. M03.1 incorpora el adaptador REST de G
 y el registro persistente de repositorios. M03.2 valida la conversación de bootstrap
 live mediante polling, agente principal persistente y aprobación atribuida. M03.3,
 también validado live, incorpora workspaces Git aislados, generación inicial,
-`.vibecoder/`, jerarquía `AGENTS.md`, validación y commits locales, todavía sin push,
-Pull Requests, webhooks, Telegram ni despliegue. M03.3.1 añade configuración Git
-negociada, aprobación conjunta y detección de deriva. Véanse
+`.vibecoder/`, jerarquía `AGENTS.md`, validación y commits locales. M03.3.1 añade
+configuración Git negociada, aprobación conjunta y detección de deriva. M03.4
+implementa push recuperable, PR con merge exclusivamente humano y activación
+verificada, y su flujo remoto completo está validado live. Sin webhooks, Telegram ni
+despliegue. M04.1 incorpora gestión local persistente y auditada de especialistas,
+configuración versionada integrada en Git, cuentas y sesiones compatibles; su ciclo
+local de activación, persistencia, suspensión y reactivación está validado live. Véanse
 [M00](docs/milestones/M00.md), [M01](docs/milestones/M01.md) y
-[M02](docs/milestones/M02.md).
+[M02](docs/milestones/M02.md), y [M04.1](docs/milestones/M04.1.md).

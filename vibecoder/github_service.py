@@ -10,7 +10,12 @@ from uuid import uuid4
 
 from .domain import GitHubOperation, GitHubRepository
 from .errors import ConflictError, ValidationError
-from .github import GitHubError, GitHubPermissionError, GitHubTransientError
+from .github import (
+    GitHubError,
+    GitHubPermissionError,
+    GitHubRepositoryNotFound,
+    GitHubTransientError,
+)
 from .ports import GitHubClient, Repository
 from .service import OrchestratorCore
 
@@ -59,6 +64,15 @@ class GitHubRegistryService:
         if require_write and not can_write:
             raise GitHubPermissionError("GitHub identity cannot write to the registered repository")
         return {str(key): bool(value) for key, value in permissions.items()}
+
+    def observe_repository_identity(self, repository_id: str) -> Mapping[str, Any]:
+        repo = self.get_repository(repository_id)
+        remote = self.client.get_repository(repo.owner_login, repo.name)
+        return {
+            "github_id": int(remote["id"]),
+            "default_branch": str(remote["default_branch"])
+            if remote.get("default_branch") else None,
+        }
 
     def observe_repository_state(self, repository_id: str) -> Mapping[str, Any]:
         repo = self.get_repository(repository_id)
@@ -157,6 +171,58 @@ class GitHubRegistryService:
     def get_issue(self, repository_id: str, number: int) -> Mapping[str, Any]:
         repo = self.get_repository(repository_id)
         return self.client.get_issue(repo.owner_login, repo.name, number)
+
+    def get_branch(self, repository_id: str, branch: str) -> Mapping[str, Any] | None:
+        repo = self.get_repository(repository_id)
+        try:
+            return self.client.get_branch(repo.owner_login, repo.name, branch)
+        except GitHubRepositoryNotFound:
+            return None
+
+    def list_pull_requests(
+        self, repository_id: str, *, state: str = "all",
+        head: str | None = None, base: str | None = None,
+    ) -> Sequence[Mapping[str, Any]]:
+        repo = self.get_repository(repository_id)
+        qualified_head = f"{repo.owner_login}:{head}" if head else None
+        return self.client.list_pull_requests(
+            repo.owner_login, repo.name, state=state, head=qualified_head, base=base
+        )
+
+    def get_pull_request(self, repository_id: str, number: int) -> Mapping[str, Any]:
+        repo = self.get_repository(repository_id)
+        return self.client.get_pull_request(repo.owner_login, repo.name, number)
+
+    def create_pull_request(
+        self, repository_id: str, *, title: str, body: str, head: str, base: str,
+        idempotency_key: str,
+    ) -> Mapping[str, Any]:
+        repo = self.get_repository(repository_id)
+        key = _required(idempotency_key, "idempotency_key")
+        marker = _marker("CREATE_PULL_REQUEST", key)
+        marked_body = f"{body.rstrip()}\n\n{marker}"
+        operation = self._prepare_operation(
+            repo.id, "CREATE_PULL_REQUEST", key,
+            {"title": title, "body": body, "head": head, "base": base},
+        )
+        candidates = self.list_pull_requests(
+            repository_id, state="all", head=head, base=base
+        )
+        compatible = [item for item in candidates if marker in str(item.get("body") or "")]
+        if len(compatible) == 1:
+            self._complete(operation.id, compatible[0])
+            return compatible[0]
+        if len(compatible) > 1 or candidates:
+            raise ConflictError("existe un Pull Request incompatible para la misma rama/base")
+        try:
+            created = self.client.create_pull_request(
+                repo.owner_login, repo.name, title, marked_body, head, base
+            )
+        except GitHubError as exc:
+            self._fail(operation.id, exc)
+            raise
+        self._complete(operation.id, created)
+        return created
 
     def list_comments(self, repository_id: str, issue_number: int) -> Sequence[Mapping[str, Any]]:
         repo = self.get_repository(repository_id)

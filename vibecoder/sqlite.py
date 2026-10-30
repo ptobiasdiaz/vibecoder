@@ -136,6 +136,49 @@ _COLUMNS = {
             "updated_at",
         }
     ),
+    "publication_workflows": frozenset(
+        {
+            "id", "project_id", "bootstrap_workflow_id", "git_configuration_id",
+            "generation_id", "repository_id", "status", "base_branch", "base_sha",
+            "published_branch", "published_sha", "pull_request_id",
+            "pull_request_number", "pull_request_url", "merge_commit_sha",
+            "remote_state_json", "blocked_reason", "activated_at", "created_at",
+            "updated_at",
+        }
+    ),
+    "publication_operations": frozenset(
+        {
+            "id", "publication_id", "operation_type", "idempotency_key", "status",
+            "expected_ref", "expected_sha", "remote_id", "error_category",
+            "error_message", "started_at", "finished_at",
+        }
+    ),
+    "specialist_agents": frozenset(
+        {
+            "agent_id", "project_id", "logical_id", "display_name", "status",
+            "assigned_account_id", "active_revision_id", "created_by", "created_at",
+            "updated_at",
+        }
+    ),
+    "agent_configuration_revisions": frozenset(
+        {
+            "id", "agent_id", "version", "status", "role",
+            "responsibilities_json", "capabilities_json", "restrictions_json",
+            "instructions_path", "instructions_hash", "configuration_hash",
+            "source_commit", "created_by", "authorized_by", "created_at", "updated_at",
+        }
+    ),
+    "agent_audit_events": frozenset(
+        {
+            "id", "agent_id", "project_id", "operation", "actor",
+            "previous_status", "new_status", "previous_version", "new_version",
+            "result", "detail", "created_at",
+        }
+    ),
+}
+
+_PRIMARY_KEYS = {
+    "specialist_agents": "agent_id",
 }
 
 
@@ -207,10 +250,11 @@ class SQLiteRepository:
 
     def update(self, table: str, entity_id: str, values: dict[str, object]) -> None:
         self._validate_columns(table, values)
+        primary_key = _PRIMARY_KEYS.get(table, "id")
         assignments = ", ".join(f"{column} = ?" for column in values)
         try:
             cursor = self.connection.execute(
-                f"UPDATE {table} SET {assignments} WHERE id = ?",
+                f"UPDATE {table} SET {assignments} WHERE {primary_key} = ?",
                 (*values.values(), entity_id),
             )
         except sqlite3.IntegrityError as exc:
@@ -220,8 +264,9 @@ class SQLiteRepository:
 
     def get(self, table: str, entity_id: str) -> dict[str, Any]:
         self._validate_table(table)
+        primary_key = _PRIMARY_KEYS.get(table, "id")
         row = self.connection.execute(
-            f"SELECT * FROM {table} WHERE id = ?", (entity_id,)
+            f"SELECT * FROM {table} WHERE {primary_key} = ?", (entity_id,)
         ).fetchone()
         if row is None:
             raise NotFoundError(f"{table} no encontrado: {entity_id}")
@@ -241,8 +286,13 @@ class SQLiteRepository:
         if criteria:
             where = " WHERE " + " AND ".join(f"{column} = ?" for column in criteria)
             params.extend(criteria.values())
-        order_column = "started_at" if table == "execution_attempts" else "created_at"
-        suffix = f" ORDER BY {order_column}, id"
+        order_column = (
+            "started_at"
+            if table in {"execution_attempts", "publication_operations"}
+            else "created_at"
+        )
+        primary_key = _PRIMARY_KEYS.get(table, "id")
+        suffix = f" ORDER BY {order_column}, {primary_key}"
         if limit is not None:
             suffix += " LIMIT ?"
             params.append(limit)

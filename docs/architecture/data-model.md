@@ -7,6 +7,11 @@ Entidades iniciales:
 - `Project`: proyecto lógico con repositorio GitHub opcional inicialmente, estado de
   bootstrap, cuenta asignada y configuración activa.
 - `Agent`: ID lógico, repositorio, rol, versión de definición, estado, cuenta asignada.
+- `SpecialistAgent`: extensión no destructiva de `Agent` con identificador único por
+  proyecto, ciclo de vida, cuenta asignada y revisión activa.
+- `AgentConfigurationRevision`: rol, responsabilidades, capacidades, restricciones,
+  instrucciones, hashes, commit y autorización versionados.
+- `AgentAuditEvent`: actor, operación, transición, versiones y resultado administrativo.
 - `Session`: ID técnico Codex, agente, cuenta, ciclo de vida, estado de compactación/reconstrucción.
 - `Task`: unidad asignada a un agente, estado, referencia externa e idempotencia.
 - `ExecutionAttempt`: intento numerado, sesión, thread, turn, resultado final y error
@@ -27,6 +32,10 @@ Entidades iniciales:
   commit local preparado.
 - `GitConfiguration`: revisión propuesta, confirmada, aprobada o aplicada; decisiones
   Git tipadas, hash canónico, snapshot remoto, especificación y evento autorizador.
+- `PublicationWorkflow`: cadena autorizada desde generación hasta ramas, PR, merge y
+  activación, con SHA y estado remoto verificados.
+- `PublicationOperation`: intención y resultado de cada push para reconciliar una
+  terminación incierta antes de repetir el efecto.
 - `IssueWorkflow`: issue ID, estado, revisión de especificación aprobada, responsables, versión de etiquetas.
 - `Execution`: ID, sesión, evento origen, prompt_comment_id, response_comment_id, estado, intentos, timestamps, consumo.
 - `Question`: ID estable, Issue/PR, autor lógico, destinatario, comentario origen, comentario respuesta, estado.

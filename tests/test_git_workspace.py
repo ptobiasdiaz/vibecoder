@@ -80,6 +80,21 @@ class GitAdapterTests(unittest.TestCase):
         with self.assertRaises(ValidationError):
             self.adapter._validate_branch("../../main")
 
+    def test_noninteractive_push_does_not_persist_token(self) -> None:
+        remote = self.bare("push.git")
+        workspace = self.root / "push-workspace"
+        self.adapter.clone(str(remote), workspace)
+        local_sha = self.adapter.create_empty_base(workspace, "main")
+        self.adapter.push_branch(
+            workspace, "main", "main", token="test-secret-never-persist"
+        )
+        config = git("config", "--local", "--list", cwd=workspace)
+        self.assertNotIn("test-secret-never-persist", config)
+        self.assertEqual(
+            local_sha,
+            git("--git-dir", str(remote), "rev-parse", "refs/heads/main"),
+        )
+
 
 class WorkspaceManagerTests(unittest.TestCase):
     def setUp(self) -> None:

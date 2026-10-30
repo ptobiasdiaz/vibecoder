@@ -111,6 +111,15 @@ class FakeGitHubClient:
         issue["labels"] = [self.labels[label] for label in labels]
         return issue["labels"]
 
+    def list_pull_requests(self, owner: str, name: str, *, state: str = "all", head: str | None = None, base: str | None = None) -> Sequence[Mapping[str, Any]]:
+        return []
+
+    def get_pull_request(self, owner: str, name: str, number: int) -> Mapping[str, Any]:
+        raise GitHubRepositoryNotFound("missing")
+
+    def create_pull_request(self, owner: str, name: str, title: str, body: str, head: str, base: str) -> Mapping[str, Any]:
+        raise NotImplementedError
+
 
 class GitHubRegistryTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -276,6 +285,22 @@ class GitHubHttpClientTests(unittest.TestCase):
         with client:
             branch = client.get_branch("acme", "alpha", "main")
         self.assertEqual(branch["commit"]["sha"], "a" * 40)
+
+    def test_creates_pull_request_with_validated_refs(self) -> None:
+        payload = {
+            "id": 10, "node_id": "PR_10", "number": 3, "title": "Bootstrap",
+            "body": "Review", "state": "open", "html_url": "https://github.test/pr/3",
+            "draft": False, "merged": False, "merge_commit_sha": None,
+            "head": {"ref": "vibecoder/bootstrap", "sha": "b" * 40},
+            "base": {"ref": "main", "sha": "a" * 40},
+        }
+        client = self.client(lambda request: httpx.Response(201, json=payload))
+        with client:
+            result = client.create_pull_request(
+                "acme", "alpha", "Bootstrap", "Review", "vibecoder/bootstrap", "main"
+            )
+        self.assertEqual(result["number"], 3)
+        self.assertEqual(result["head"]["sha"], "b" * 40)
 
 
 if __name__ == "__main__":

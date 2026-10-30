@@ -18,6 +18,8 @@ vibecoder-worker = "vibecoder.worker:main"
 vibecoder-bootstrap = "vibecoder.bootstrap:main"
 vibecoder-live-setup = "vibecoder.live_setup:main"
 vibecoder-generate = "vibecoder.generation:main"
+vibecoder-publish = "vibecoder.publication:main"
+vibecoder-agents = "vibecoder.agents:main"
 
 [tool.setuptools.packages.find]
 include = ["m00_codex*", "vibecoder*"]

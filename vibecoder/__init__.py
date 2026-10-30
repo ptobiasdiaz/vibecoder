@@ -3,6 +3,8 @@
 from .domain import (
     AccountStatus,
     AgentSession,
+    AgentConfigurationRevision,
+    AgentRevisionStatus,
     AgentStatus,
     AgentType,
     AttemptStatus,
@@ -21,7 +23,11 @@ from .domain import (
     GitPublicationPolicy,
     Project,
     ProjectStatus,
+    PublicationStatus,
+    PublicationWorkflow,
     SessionPersistenceState,
+    SpecialistAgent,
+    SpecialistStatus,
     Task,
     TaskStatus,
     TechnicalCommitPolicy,
@@ -34,10 +40,13 @@ from .documents import DocumentCategory, DocumentResolver, InstructionLoader
 from .git import GitAdapter, WorkspaceManager
 from .git_config import GitConfigPayload, GitConfigurationService
 from .github_service import GitHubRegistryService
+from .publication import PublicationService
 
 __all__ = [
     "AccountStatus",
     "AgentSession",
+    "AgentConfigurationRevision",
+    "AgentRevisionStatus",
     "AgentStatus",
     "AgentType",
     "AttemptStatus",
@@ -56,6 +65,9 @@ __all__ = [
     "OrchestratorCore",
     "Project",
     "ProjectStatus",
+    "PublicationService",
+    "PublicationStatus",
+    "PublicationWorkflow",
     "SQLiteRepository",
     "DocumentCategory",
     "DocumentResolver",
@@ -70,6 +82,8 @@ __all__ = [
     "GitPublicationPolicy",
     "WorkspaceManager",
     "SessionPersistenceState",
+    "SpecialistAgent",
+    "SpecialistStatus",
     "Task",
     "TaskStatus",
     "TechnicalCommitPolicy",

@@ -26,7 +26,8 @@ El agente principal inicial y definitivo comparten identidad lógica. No crear e
 En M03.2 el flujo termina al congelar la especificación conversacional y mover el
 proyecto a `DESIGNING`. M03.3 prepara un workspace aislado, genera `AGENTS.md`, la
 estructura mínima `.vibecoder/` y documentación pública bajo `doc/`, valida y crea un
-commit local. La publicación de rama y el PR permanecen diferidos a M03.4.
+commit local. M03.4 publica de forma recuperable, abre un PR para revisión humana y
+solo mueve el proyecto a `ACTIVE` después de verificar el merge mediante GitHub.
 
 ## Criterio de aceptación
 

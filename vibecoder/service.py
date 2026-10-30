@@ -220,13 +220,15 @@ class OrchestratorCore:
         self, agent_id: str, *, session_id: str | None = None
     ) -> AgentSession:
         agent = self.get_agent(agent_id)
-        project = self.get_project(agent.project_id)
+        if agent.status is not AgentStatus.ACTIVE:
+            raise ConflictError("no se crean sesiones para un agente no activo")
+        account_id = self.agent_account_id(agent.id)
         now = _now()
         values = {
             "id": session_id or _id(),
             "agent_id": agent_id,
             "codex_thread_id": None,
-            "codex_account_id": project.codex_account_id,
+            "codex_account_id": account_id,
             "persistence_state": SessionPersistenceState.NOT_CREATED.value,
             "last_activity_at": None,
             "created_at": now,
@@ -294,6 +296,10 @@ class OrchestratorCore:
         agent = self.get_agent(agent_id)
         if agent.project_id != project_id:
             raise ConflictError("el agente no pertenece al proyecto de la tarea")
+        if agent.status is not AgentStatus.ACTIVE:
+            raise ConflictError("no se asignan tareas nuevas a un agente no activo")
+        if self.is_managed_specialist(agent.id):
+            raise ConflictError("la ejecución de especialistas queda fuera de M04.1")
         task_type = _required(task_type, "task_type")
         idempotency_key = idempotency_key.strip() if idempotency_key else None
         external_ref = external_ref.strip() if external_ref else None
@@ -397,6 +403,10 @@ class OrchestratorCore:
         agent = self.get_agent(agent_id)
         if agent.project_id != task.project_id:
             raise ConflictError("el agente no pertenece al proyecto de la tarea")
+        if agent.status is not AgentStatus.ACTIVE:
+            raise ConflictError("no se asignan tareas a un agente no activo")
+        if self.is_managed_specialist(agent.id):
+            raise ConflictError("la asignación a especialistas queda fuera de M04.1")
         self.repository.update(
             "tasks", task_id, {"agent_id": agent_id, "updated_at": _now()}
         )
@@ -405,6 +415,10 @@ class OrchestratorCore:
     def start_attempt(self, task_id: str) -> ExecutionAttempt:
         with self.repository.transaction():
             task = self.get_task(task_id)
+            if self.get_agent(task.agent_id).status is not AgentStatus.ACTIVE:
+                raise ConflictError("el agente de la tarea no está activo")
+            if self.is_managed_specialist(task.agent_id):
+                raise ConflictError("la ejecución de especialistas queda fuera de M04.1")
             if TaskStatus.RUNNING not in TASK_TRANSITIONS[task.status]:
                 raise InvalidTransition("task", task.status, TaskStatus.RUNNING)
             next_number = self.repository.next_attempt_number(task_id)
@@ -534,12 +548,32 @@ class OrchestratorCore:
         return self.get_attempt(attempt_id)
 
     def get_or_create_session(self, agent_id: str) -> AgentSession:
-        self.get_agent(agent_id)
+        agent = self.get_agent(agent_id)
+        if agent.status is not AgentStatus.ACTIVE:
+            raise ConflictError("el agente no está activo")
+        account_id = self.agent_account_id(agent_id)
         rows = self.repository.list("agent_sessions", agent_id=agent_id)
-        usable = [row for row in rows if row["persistence_state"] != SessionPersistenceState.LOST]
+        usable = [
+            row for row in rows
+            if row["persistence_state"] != SessionPersistenceState.LOST
+            and str(row["codex_account_id"]) == account_id
+        ]
         if usable:
             return self.get_session(str(usable[-1]["id"]))
         return self.create_session(agent_id)
+
+    def agent_account_id(self, agent_id: str) -> str:
+        agent = self.get_agent(agent_id)
+        specialist = self.repository.find_one("specialist_agents", agent_id=agent_id)
+        if specialist:
+            account_id = str(specialist["assigned_account_id"])
+            self.get_account(account_id)
+            return account_id
+        return self.get_project(agent.project_id).codex_account_id
+
+    def is_managed_specialist(self, agent_id: str) -> bool:
+        self.get_agent(agent_id)
+        return self.repository.find_one("specialist_agents", agent_id=agent_id) is not None
 
     def list_attempts_by_status(self, status: AttemptStatus | str) -> list[ExecutionAttempt]:
         return [

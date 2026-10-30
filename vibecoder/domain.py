@@ -41,6 +41,22 @@ class AgentStatus(StrEnum):
     UNAVAILABLE = "UNAVAILABLE"
 
 
+class SpecialistStatus(StrEnum):
+    DRAFT = "DRAFT"
+    PROPOSED = "PROPOSED"
+    ACTIVE = "ACTIVE"
+    SUSPENDED = "SUSPENDED"
+    RETIRED = "RETIRED"
+
+
+class AgentRevisionStatus(StrEnum):
+    PROPOSED = "PROPOSED"
+    VALIDATED = "VALIDATED"
+    ACTIVE = "ACTIVE"
+    SUPERSEDED = "SUPERSEDED"
+    REJECTED = "REJECTED"
+
+
 class SessionPersistenceState(StrEnum):
     NOT_CREATED = "NOT_CREATED"
     THREAD_CREATED_UNCONFIRMED = "THREAD_CREATED_UNCONFIRMED"
@@ -121,6 +137,29 @@ class GitPublicationPolicy(StrEnum):
 
 class GitIntegrationPolicy(StrEnum):
     HUMAN_REVIEW_MERGE = "HUMAN_REVIEW_MERGE"
+
+
+class PublicationStatus(StrEnum):
+    READY = "READY"
+    INITIALIZING_BASE = "INITIALIZING_BASE"
+    BASE_READY = "BASE_READY"
+    PUSHING_BRANCH = "PUSHING_BRANCH"
+    BRANCH_PUBLISHED = "BRANCH_PUBLISHED"
+    CREATING_PR = "CREATING_PR"
+    WAITING_FOR_MERGE = "WAITING_FOR_MERGE"
+    MERGED = "MERGED"
+    ACTIVATED = "ACTIVATED"
+    BLOCKED = "BLOCKED"
+    UNKNOWN = "UNKNOWN"
+
+
+SPECIALIST_TRANSITIONS: Mapping[SpecialistStatus, frozenset[SpecialistStatus]] = {
+    SpecialistStatus.DRAFT: frozenset({SpecialistStatus.PROPOSED, SpecialistStatus.RETIRED}),
+    SpecialistStatus.PROPOSED: frozenset({SpecialistStatus.ACTIVE, SpecialistStatus.RETIRED}),
+    SpecialistStatus.ACTIVE: frozenset({SpecialistStatus.SUSPENDED, SpecialistStatus.RETIRED}),
+    SpecialistStatus.SUSPENDED: frozenset({SpecialistStatus.ACTIVE, SpecialistStatus.RETIRED}),
+    SpecialistStatus.RETIRED: frozenset(),
+}
 
 
 TASK_TRANSITIONS: Mapping[TaskStatus, frozenset[TaskStatus]] = {
@@ -409,4 +448,78 @@ class GitConfiguration:
     applied_at: str | None
     created_at: str
     updated_at: str
+
+
+@dataclass(frozen=True)
+class PublicationWorkflow:
+    id: str
+    project_id: str
+    bootstrap_workflow_id: str
+    git_configuration_id: str
+    generation_id: str
+    repository_id: str
+    status: PublicationStatus
+    base_branch: str
+    base_sha: str | None
+    published_branch: str
+    published_sha: str
+    pull_request_id: int | None
+    pull_request_number: int | None
+    pull_request_url: str | None
+    merge_commit_sha: str | None
+    remote_state_json: str | None
+    blocked_reason: str | None
+    activated_at: str | None
+    created_at: str
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class SpecialistAgent:
+    agent_id: str
+    project_id: str
+    logical_id: str
+    display_name: str
+    status: SpecialistStatus
+    assigned_account_id: str
+    active_revision_id: str | None
+    created_by: str
+    created_at: str
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class AgentConfigurationRevision:
+    id: str
+    agent_id: str
+    version: int
+    status: AgentRevisionStatus
+    role: str
+    responsibilities: tuple[str, ...]
+    capabilities: tuple[str, ...]
+    restrictions: tuple[str, ...]
+    instructions_path: str
+    instructions_hash: str
+    configuration_hash: str
+    source_commit: str | None
+    created_by: str
+    authorized_by: str | None
+    created_at: str
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class AgentAuditEvent:
+    id: str
+    agent_id: str
+    project_id: str
+    operation: str
+    actor: str
+    previous_status: str | None
+    new_status: str | None
+    previous_version: int | None
+    new_version: int | None
+    result: str
+    detail: str | None
+    created_at: str
 

@@ -68,16 +68,27 @@ históricas se preservan sin ampliar su autorización. Sin push ni Pull Requests
 
 ### M03.4 — Publicación y Pull Request de bootstrap
 
-Publicación recuperable de la rama local validada, preparación de la rama base técnica
-cuando el remoto aprobado esté vacío, creación idempotente del Pull Request y
-reconciliación antes de repetir efectos remotos. Solo podrá ejecutar las operaciones
-enumeradas por la configuración aprobada en M03.3.1; revisión y merge seguirán siendo
-humanos. Webhooks, `/reply` y el procesamiento general de eventos permanecen para un
-hito posterior.
+**Estado (2026-10-30): COMPLETADO; FLUJO REMOTO LIVE VALIDADO.** Publicación
+recuperable, base técnica para remotos vacíos, push verificado, Pull Request
+idempotente, polling de merge humano y activación persistente. La prueba real confirmó
+el primer push, la rama predeterminada, la publicación bootstrap, el PR, el merge
+manual y la activación. Nunca hace force push ni merge. Webhooks, `/reply` y eventos
+generales permanecen posteriores. Véase [M03.4](M03.4.md).
 
 ## M04 — Registro dinámico y especialistas
 
-Definición versionada de roles, creación/retirada mediante PR, sesiones persistentes, asignación exclusiva por principal.
+### M04.1 — Definición y ciclo de vida
+
+**Estado (2026-10-30): COMPLETADO; VALIDACIÓN LIVE LOCAL SUPERADA.** Identidad
+persistente, propuestas y revisiones versionadas, integración obligatoria de
+instrucciones, cuentas por agente, sesiones compatibles, auditoría y ciclo de
+suspensión/reactivación validados sobre el proyecto de pruebas activado por M03.4. No
+negocia por GitHub ni ejecuta tareas especializadas. Véase [M04.1](M04.1.md).
+
+### M04.2 y siguientes
+
+Negociación y aprobación GitHub, PR de cambios del registro, asignación exclusiva por
+el principal y ejecución coordinada se mantienen como hitos posteriores.
 
 ## M05 — Implementación y PR
 

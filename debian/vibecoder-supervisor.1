@@ -1,0 +1,39 @@
+.TH VIBECODER-SUPERVISOR 1 "2026-10-31" "vibecoder 0.3.0" "User Commands"
+.SH NAME
+vibecoder-supervisor \- run and inspect the persistent vibecoder supervisor
+.SH SYNOPSIS
+.B vibecoder-supervisor
+.BI --config " FILE"
+.RI { config-check | dry-run | status | jobs | once | run | reconcile | pause | resume }
+.SH DESCRIPTION
+Vibecoder coordinates approved Codex and GitHub workflows using persistent SQLite
+state. The supervisor command provides continuous operation and diagnostics.
+.PP
+The Debian package starts with
+.B operational_state=NOT_CONFIGURED
+and will not select work until an administrator has validated the configuration and
+changed it to
+.BR READY .
+.SH FILES
+.TP
+.I /etc/vibecoder/supervisor.json
+Supervisor configuration.
+.TP
+.I /etc/vibecoder/accounts.json
+Non-secret account runtime references.
+.TP
+.I /var/lib/vibecoder
+Persistent database, account homes and workspaces.
+.SH OTHER COMMANDS
+The package also installs vibecoder-agents, vibecoder-bootstrap, vibecoder-generate,
+vibecoder-issues, vibecoder-live-setup, vibecoder-m00-diagnose, vibecoder-publish,
+vibecoder-reviews, vibecoder-tasks and vibecoder-worker. Use
+.B --help
+on each command for its milestone-specific interface.
+.SH SECURITY
+Tokens are supplied externally and must not be stored in versioned configuration.
+Vibecoder does not merge Pull Requests automatically.
+.SH SEE ALSO
+.BR systemctl (1),
+.BR journalctl (1),
+.BR git (1)

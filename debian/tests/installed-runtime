@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+runuser -u vibecoder -- vibecoder-supervisor \
+    --config /etc/vibecoder/supervisor.json config-check
+test "$(runuser -u vibecoder -- vibecoder-supervisor \
+    --config /etc/vibecoder/supervisor.json once \
+    | python3 -c 'import json,sys; print(json.load(sys.stdin)["inactive"])')" = 1
+unit=/usr/lib/systemd/system/vibecoder.service
+test -e "$unit" || unit=/lib/systemd/system/vibecoder.service
+systemd-analyze verify "$unit"

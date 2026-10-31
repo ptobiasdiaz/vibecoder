@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+
+# Deliberately preserve /var/lib/vibecoder and the service identity, including
+# on purge. Removing persistent sessions/workspaces requires an explicit
+# administrator action outside package maintenance scripts.
+
+#DEBHELPER#

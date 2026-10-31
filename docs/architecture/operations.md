@@ -65,3 +65,11 @@ exclusión por workspace y PR. Las pausas persistentes no cancelan trabajos en c
 crean autorización. SIGINT/SIGTERM detienen nueva selección; operaciones inciertas se
 conservan. El logging y `supervisor_activity` registran metadatos y errores clasificados,
 nunca tokens ni contenido sensible.
+
+## Servicio instalado
+
+El paquete Debian ejecuta el supervisor como `vibecoder:vibecoder`, con estado en
+`/var/lib/vibecoder`, configuración en `/etc/vibecoder` y logs en journald. El primer
+arranque usa `NOT_CONFIGURED`: permanece disponible para diagnóstico y migraciones,
+pero no selecciona trabajo. Codex se configura mediante ruta explícita y sus
+`CODEX_HOME` viven bajo el directorio de cuentas, nunca se copian desde el instalador.

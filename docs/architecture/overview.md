@@ -57,3 +57,11 @@ workflows persistidos; el dispatcher invoca los servicios existentes y estos con
 la autoridad sobre aprobaciones y transiciones. Jobs, leases y pausas viven en SQLite.
 Una reserva expirada se marca `UNKNOWN` y exige reconciliación antes de repetir efectos.
 No se admiten todavía varias instancias activas sobre la misma base de datos.
+
+## Distribución Debian
+
+M05.1 empaqueta el mismo runtime y supervisor como servicio systemd sin duplicar su
+lógica. Configuración, datos y runtime efímero siguen FHS bajo `/etc/vibecoder`,
+`/var/lib/vibecoder` y `/run/vibecoder`. Un estado operativo explícito mantiene la
+instalación en espera segura hasta que la administración futura valide cuentas,
+proyectos y autorizaciones. Véase ADR-0014.

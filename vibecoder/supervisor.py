@@ -99,6 +99,7 @@ class SupervisorConfig(BaseModel):
     remote_reads_enabled: bool = True
     runner_id: str = Field(default_factory=lambda: f"local-{uuid4()}")
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    operational_state: Literal["NOT_CONFIGURED", "CONFIGURED", "READY"] = "READY"
 
     @field_validator("database", "task_workspace_root", "accounts")
     @classmethod
@@ -633,6 +634,13 @@ class Supervisor:
                  "blocked": self._runtime_block(item)} for item in self.scheduler.plan()]
 
     async def once(self) -> dict[str, int]:
+        if self.config.operational_state != "READY":
+            self.store.activity(
+                "runtime.inactive",
+                f"runtime en estado {self.config.operational_state}; no se selecciona trabajo",
+            )
+            return {"scheduled": 0, "completed": 0, "blocked": 0,
+                    "recovered_unknown": 0, "inactive": 1}
         recovered = self.store.recover_expired()
         self.store.schedule_recoveries(max_attempts=self.config.limits.max_attempts)
         scheduled = self.scheduler.sync(self.store)
@@ -678,6 +686,16 @@ class Supervisor:
                 "completed": completed, "blocked": blocked}
 
     async def run(self) -> None:
+        if self.config.operational_state != "READY":
+            logging.info("runtime inactivo: operational_state=%s", self.config.operational_state)
+            while not self.stopping.is_set():
+                try:
+                    await asyncio.wait_for(
+                        self.stopping.wait(), timeout=self.config.intervals.idle
+                    )
+                except TimeoutError:
+                    pass
+            return
         while not self.stopping.is_set():
             await self.once()
             try:
@@ -689,6 +707,8 @@ class Supervisor:
         self.stopping.set()
 
     def _runtime_block(self, job: JobSpec | SupervisorJob) -> str | None:
+        if self.config.operational_state != "READY":
+            return f"runtime en estado {self.config.operational_state}"
         if job.category is WorkCategory.CODEX and not self.config.inference_enabled:
             return "inferencia pausada por configuración"
         publishes_response = job.job_type in {"BOOTSTRAP_PROCESS", "ISSUE_PROCESS", "PR_PROCESS"}
@@ -750,7 +770,8 @@ def main() -> int:
         if args.command == "dry-run": print(json.dumps(supervisor.dry_run(), indent=2, ensure_ascii=False)); return 0
         if args.command == "status":
             counts = {state.value: len(supervisor.store.list(state=state)) for state in SupervisorJobState}
-            print(json.dumps({"runner_id": config.runner_id, "jobs": counts,
+            print(json.dumps({"runner_id": config.runner_id,
+                "operational_state": config.operational_state, "jobs": counts,
                 "controls": repository.list("supervisor_controls")}, indent=2)); return 0
         if args.command == "jobs":
             state = SupervisorJobState(args.state) if args.state else None

@@ -118,9 +118,27 @@ backoff, recuperación conservadora, dry-run y apagado ordenado. No añade autor
 merge ni cierre automático. Véase [M04.5](M04.5.md), el
 [procedimiento](M04-live-validation.md) y los [resultados live](M04-live-results.md).
 
-## M05 — Implementación y PR
+## M05 — Producto instalable y administrable
 
-Planes técnicos, worktrees/containers aislados, sesiones temporales, tests, integración, PR y ciclo de correcciones.
+### M05.1 — Paquete Debian y systemd
+
+**Estado (2026-10-31): IMPLEMENTADO; BUILD REPRODUCIBLE E INSTALACIÓN AISLADA
+VALIDADOS EN DEBIAN FORKY; SYSTEMD REAL PENDIENTE.** Paquete Debian estándar, rutas
+FHS, usuario sin login, configuración inicial inerte, migraciones, entrypoint y unidad
+endurecida. Véase [M05.1](M05.1.md).
+
+### M05.2 — Administración CLI
+
+Pendiente: configuración segura de proyectos, cuentas, diagnóstico y transición a
+`READY`.
+
+### M05.3 — Configuración debconf
+
+Pendiente: configuración inicial integrada con el ciclo Debian.
+
+### M05.4 — Actualización y backups
+
+Pendiente: política completa de backup, migración y rollback.
 
 ## M06 — Operación multicuenta
 

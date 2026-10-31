@@ -1,0 +1,32 @@
+Source: vibecoder
+Section: admin
+Priority: optional
+Maintainer: Tobias Diaz <tobias.diaz@uclm.es>
+Build-Depends:
+ debhelper-compat (= 13),
+ dh-python,
+ pybuild-plugin-pyproject,
+ python3-all,
+ python3-httpx (>= 0.27),
+ python3-pydantic (>= 2.7),
+ python3-setuptools (>= 68)
+Standards-Version: 4.7.2
+Rules-Requires-Root: no
+Homepage: https://github.com/ptobiasdiaz/vibecoder
+
+Package: vibecoder
+Architecture: all
+Depends:
+ ${misc:Depends},
+ ${python3:Depends},
+ adduser,
+ ca-certificates,
+ git,
+ python3-httpx (>= 0.27),
+ python3-pydantic (>= 2.7),
+ systemd-sysv
+Description: persistent Codex and GitHub multi-agent orchestrator
+ Vibecoder coordinates persistent agents, approved plans, isolated Git
+ workspaces and recoverable GitHub workflows. This package installs the local
+ runtime and its systemd supervisor. Codex authentication and projects must be
+ configured separately before external work is enabled.

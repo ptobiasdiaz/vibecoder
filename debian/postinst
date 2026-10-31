@@ -1,0 +1,25 @@
+#!/bin/sh
+set -e
+
+if ! getent group vibecoder >/dev/null; then
+    addgroup --system vibecoder
+fi
+if ! getent passwd vibecoder >/dev/null; then
+    adduser --system --ingroup vibecoder --home /var/lib/vibecoder \
+        --no-create-home --shell /usr/sbin/nologin --disabled-password vibecoder
+fi
+
+install -d -o root -g vibecoder -m 0750 /etc/vibecoder
+install -d -o vibecoder -g vibecoder -m 0750 /var/lib/vibecoder
+install -d -o vibecoder -g vibecoder -m 0750 /var/lib/vibecoder/accounts
+install -d -o vibecoder -g vibecoder -m 0750 /var/lib/vibecoder/workspaces
+install -d -o vibecoder -g vibecoder -m 0750 /var/lib/vibecoder/state
+
+for file in /etc/vibecoder/supervisor.json /etc/vibecoder/accounts.json; do
+    if [ -e "$file" ]; then
+        chown root:vibecoder "$file"
+        chmod 0640 "$file"
+    fi
+done
+
+#DEBHELPER#

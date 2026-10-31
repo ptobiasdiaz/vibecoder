@@ -38,17 +38,25 @@ configuración versionada integrada en Git, cuentas y sesiones compatibles; su c
 local de activación, persistencia, suspensión y reactivación está validado live. M04.2
 añade coordinación persistente de Issues, consultas de especialistas, planes
 estructurados y tareas aprobadas; el flujo está validado live hasta `MATERIALIZED`.
-M04.3 añade ejecución individual autorizada, workspaces y sesiones por tarea,
-validación, commits, ramas y Pull Requests recuperables; su validación live está
-pendiente. M04.4 añade supervisión de reviews, conversación directa, correcciones
-autorizadas sobre la misma rama y finalización tras merge humano; su validación live
-se realizará conjuntamente con M04.3. M04.5 añade el supervisor continuo local con
-planificación persistente, leases, límites, pausas, recuperación, dry-run y CLI; está
-validado offline y su escenario live integral queda pendiente. Véanse
+M04.3–M04.5 completan ejecución, PRs, reviews, correcciones y supervisor continuo; el
+flujo integral está validado live con dos tareas dependientes y merges humanos. M05.1
+añade el paquete Debian, usuario de servicio, rutas FHS, configuración inicial inerte
+y unidad systemd. Véanse
 [M00](docs/milestones/M00.md), [M01](docs/milestones/M01.md) y
 [M02](docs/milestones/M02.md), [M04.1](docs/milestones/M04.1.md) y
 [M04.3](docs/milestones/M04.3.md), [M04.4](docs/milestones/M04.4.md) y
 [M04.5](docs/milestones/M04.5.md).
+
+## Paquete Debian
+
+```bash
+dpkg-buildpackage -us -uc -b
+sudo apt install ../vibecoder_0.3.0_all.deb
+vibecoder-supervisor --config /etc/vibecoder/supervisor.json status
+```
+
+La instalación arranca en `NOT_CONFIGURED` y no realiza operaciones externas. Consulte
+[la guía Debian](docs/installation/debian.md) antes de instalar.
 
 ## Supervisor continuo
 

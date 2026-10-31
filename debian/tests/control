@@ -1,0 +1,4 @@
+Tests: installed-runtime
+Depends: @, systemd
+Restrictions: needs-root
+

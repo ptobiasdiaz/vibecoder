@@ -159,6 +159,30 @@ class SupervisorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result["completed"], 1)
         self.assertTrue(self.repository.list("supervisor_activity"))
 
+    async def test_not_configured_runtime_stays_idle(self):
+        config = self.config.model_copy(update={"operational_state": "NOT_CONFIGURED"})
+        seen = []
+        supervisor = Supervisor(self.repository, config, Dispatcher({"TEST": seen.append}))
+        supervisor.scheduler.plan = lambda: [self.spec()]
+        result = await supervisor.once()
+        self.assertEqual(result["inactive"], 1)
+        self.assertEqual(seen, [])
+        self.assertEqual(self.repository.list("supervisor_jobs"), [])
+        self.assertEqual(
+            self.repository.list("supervisor_activity")[-1]["event_type"],
+            "runtime.inactive",
+        )
+
+    async def test_not_configured_continuous_runtime_does_not_grow_state(self):
+        config = self.config.model_copy(update={"operational_state": "NOT_CONFIGURED"})
+        supervisor = Supervisor(self.repository, config, Dispatcher())
+        task = asyncio.create_task(supervisor.run())
+        await asyncio.sleep(.02)
+        supervisor.stop()
+        await asyncio.wait_for(task, 1)
+        self.assertEqual(self.repository.list("supervisor_activity"), [])
+        self.assertEqual(self.repository.list("supervisor_jobs"), [])
+
     async def test_transient_backoff_and_timeout_unknown(self):
         from vibecoder.github import GitHubTransientError
         job = self.store.schedule(self.spec("transient"), max_attempts=3)

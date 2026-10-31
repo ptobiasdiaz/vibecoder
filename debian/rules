@@ -1,0 +1,11 @@
+#!/usr/bin/make -f
+
+export PYBUILD_NAME = vibecoder
+export PYBUILD_SYSTEM = pyproject
+export PYBUILD_TEST_ARGS = -m unittest discover -s tests -p test_*.py
+
+%:
+	dh $@ --with python3 --buildsystem=pybuild
+
+override_dh_auto_test:
+	python3 -m unittest discover -s tests -p 'test_*.py'

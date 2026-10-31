@@ -1,0 +1,42 @@
+[Unit]
+Description=Vibecoder persistent orchestration supervisor
+Documentation=file:/usr/share/doc/vibecoder/debian.md
+After=local-fs.target network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/vibecoder/supervisor.json
+
+[Service]
+Type=simple
+User=vibecoder
+Group=vibecoder
+WorkingDirectory=/var/lib/vibecoder
+ExecStart=/usr/bin/vibecoder-supervisor --config /etc/vibecoder/supervisor.json run
+EnvironmentFile=-/etc/vibecoder/environment
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=45s
+KillSignal=SIGTERM
+UMask=0027
+
+StateDirectory=vibecoder
+StateDirectoryMode=0750
+RuntimeDirectory=vibecoder
+RuntimeDirectoryMode=0750
+PrivateTmp=true
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/vibecoder /run/vibecoder
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictSUIDSGID=true
+LockPersonality=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

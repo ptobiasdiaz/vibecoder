@@ -38,3 +38,17 @@ prevalecen sobre instrucciones específicas, memoria y tarea. M03.3 registra has
 las instrucciones usadas y bloquea conflictos explícitos; no crea especialistas.
 M04.1 carga explícitamente el archivo específico, conserva el hash del global sin
 duplicar su texto y bloquea cualquier deriva respecto de la revisión activa.
+
+M04.2 permite consultas de planificación mediante `/agent <id>`. Cada agente conserva
+una sesión por Issue y el principal sigue siendo el único que consolida el plan. Un
+especialista no aprueba su trabajo ni adquiere permiso de implementación. La
+asignación congela revisión, cuenta e instrucciones; cualquier deriva posterior
+bloquea la materialización.
+
+M04.3 crea una sesión de implementación exclusiva por tarea. El worker solo acepta
+`PLANNED_WORK` cuando recibe un workflow autorizado en `RUNNING`; la sesión de
+coordinación nunca se reutiliza como sesión de implementación.
+
+En M04.4 el especialista puede conversar directamente en su PR. Las decisiones de
+alcance vuelven al principal. La sesión conversacional del PR permanece separada; una
+corrección compatible reutiliza exclusivamente la sesión de implementación original.

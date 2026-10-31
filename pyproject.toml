@@ -20,6 +20,10 @@ vibecoder-live-setup = "vibecoder.live_setup:main"
 vibecoder-generate = "vibecoder.generation:main"
 vibecoder-publish = "vibecoder.publication:main"
 vibecoder-agents = "vibecoder.agents:main"
+vibecoder-issues = "vibecoder.issues:main"
+vibecoder-tasks = "vibecoder.tasks:main"
+vibecoder-reviews = "vibecoder.reviews:main"
+vibecoder-supervisor = "vibecoder.supervisor:main"
 
 [tool.setuptools.packages.find]
 include = ["m00_codex*", "vibecoder*"]

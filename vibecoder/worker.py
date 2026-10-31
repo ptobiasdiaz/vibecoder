@@ -62,8 +62,12 @@ class LocalWorker:
         tasks = [
             task for task in self.core.list_pending_tasks()
             if task.status is TaskStatus.PENDING
+            and task.task_type != "PLANNED_WORK"
             and self.core.get_agent(task.agent_id).status is AgentStatus.ACTIVE
-            and not self.core.is_managed_specialist(task.agent_id)
+            and (
+                not self.core.is_managed_specialist(task.agent_id)
+                or task.task_type == "ISSUE_CONSULTATION"
+            )
         ]
         return tasks[0] if tasks else None
 
@@ -79,12 +83,16 @@ class LocalWorker:
         *,
         session_id: str | None = None,
         runtime_config: AccountRuntimeConfig | None = None,
+        execution_workflow_id: str | None = None,
     ) -> WorkerOutcome:
         """Ejecuta una tarea concreta sin competir con otras colas de aplicación."""
         task = self.core.get_task(task_id)
         if task.status is not TaskStatus.PENDING:
             raise ConflictError("la ejecución dirigida requiere una tarea PENDING")
-        return await self._run_task(task, session_id=session_id, runtime_config=runtime_config)
+        return await self._run_task(
+            task, session_id=session_id, runtime_config=runtime_config,
+            execution_workflow_id=execution_workflow_id,
+        )
 
     async def _run_task(
         self,
@@ -92,11 +100,21 @@ class LocalWorker:
         *,
         session_id: str | None = None,
         runtime_config: AccountRuntimeConfig | None = None,
+        execution_workflow_id: str | None = None,
     ) -> WorkerOutcome:
         agent = self.core.get_agent(task.agent_id)
+        if task.task_type == "PLANNED_WORK" and not execution_workflow_id:
+            raise ConflictError("PLANNED_WORK requiere autorización M04.3")
+        if task.task_type == "REVIEW_CORRECTION" and not execution_workflow_id:
+            raise ConflictError("REVIEW_CORRECTION requiere autorización M04.4")
         if agent.status is not AgentStatus.ACTIVE:
             raise ConflictError("el agente no está activo")
-        if self.core.is_managed_specialist(agent.id):
+        if (
+            self.core.is_managed_specialist(agent.id)
+            and task.task_type != "ISSUE_CONSULTATION"
+            and not (task.task_type == "PLANNED_WORK" and execution_workflow_id)
+            and not (task.task_type == "REVIEW_CORRECTION" and execution_workflow_id)
+        ):
             raise ConflictError("la ejecución de especialistas queda fuera de M04.1")
         account = self.core.get_account(self.core.agent_account_id(agent.id))
         config = runtime_config or self.account_configs.get(account.id)
@@ -105,7 +123,9 @@ class LocalWorker:
         if config is None or config.account_id != account.id:
             raise ValidationError(f"falta configuración runtime para la cuenta {account.id}")
 
-        attempt = self.core.start_attempt(task.id)
+        attempt = self.core.start_attempt(
+            task.id, execution_workflow_id=execution_workflow_id
+        )
         session = (
             self.core.get_session(session_id)
             if session_id is not None

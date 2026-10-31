@@ -193,6 +193,18 @@ class GitHubRegistryService:
         repo = self.get_repository(repository_id)
         return self.client.get_pull_request(repo.owner_login, repo.name, number)
 
+    def list_pull_request_reviews(self, repository_id: str, number: int) -> Sequence[Mapping[str, Any]]:
+        repo = self.get_repository(repository_id)
+        return self.client.list_pull_request_reviews(repo.owner_login, repo.name, number)
+
+    def list_pull_request_review_comments(self, repository_id: str, number: int) -> Sequence[Mapping[str, Any]]:
+        repo = self.get_repository(repository_id)
+        return self.client.list_pull_request_review_comments(repo.owner_login, repo.name, number)
+
+    def list_pull_request_commits(self, repository_id: str, number: int) -> Sequence[Mapping[str, Any]]:
+        repo = self.get_repository(repository_id)
+        return self.client.list_pull_request_commits(repo.owner_login, repo.name, number)
+
     def create_pull_request(
         self, repository_id: str, *, title: str, body: str, head: str, base: str,
         idempotency_key: str,

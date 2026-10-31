@@ -8,6 +8,12 @@
 - **Orquestador**: máquina de estados, enrutamiento, prompts, registro de agentes, coordinación, autorización, idempotencia y planificación.
 - **Gestor de especialistas**: identidad persistente, configuración versionada,
   cuenta, ciclo de vida y auditoría; reutiliza sesiones y tareas del núcleo.
+- **Coordinador de Issues**: polling, conversación por Issue/agente, planes tipados,
+  aprobación por evento y materialización de tareas todavía no ejecutables.
+- **Ejecutor de tareas aprobadas**: habilitación individual, workspace y sesión por
+  tarea, validación, commit, push y PR recuperables sin merge automático.
+- **Supervisor de PRs**: eventos remotos tipados, conversación por agente,
+  correcciones autorizadas y finalización solo tras merge humano verificable.
 - **Codex runtime**: adaptador App Server para crear, reanudar, observar, reconciliar y
   cancelar turnos, aislado por cuenta.
 - **Worker local**: selecciona una tarea persistente, coordina una ejecución secuencial
@@ -44,3 +50,10 @@ Los textos de Issues, PR y comentarios son entradas no confiables. No pueden alt
 ## Flujo resumido
 
 Issue abierto → análisis del principal → discusión → especificación final → etiqueta de aprobación humana → selección de especialistas → planes y consultas → implementación aislada → revisión técnica → PR → revisión y merge humano → documentación y cierre.
+## Operación continua
+
+M04.5 añade un supervisor local monoproceso. El scheduler deriva intenciones de los
+workflows persistidos; el dispatcher invoca los servicios existentes y estos conservan
+la autoridad sobre aprobaciones y transiciones. Jobs, leases y pausas viven en SQLite.
+Una reserva expirada se marca `UNKNOWN` y exige reconciliación antes de repetir efectos.
+No se admiten todavía varias instancias activas sobre la misma base de datos.

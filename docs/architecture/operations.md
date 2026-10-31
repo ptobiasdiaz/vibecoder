@@ -13,6 +13,11 @@ sesiones históricas conservan la cuenta original y no se reanudan bajo otro
 `CODEX_HOME`: la identidad lógica permanece estable y la siguiente sesión compatible
 se crea de forma independiente.
 
+Las conversaciones M04.2 añaden aislamiento por pareja Issue/agente. La referencia de
+sesión registra cuenta, workspace y hashes de instrucciones. Si alguno cambia, no se
+reanuda el thread incompatible: se conserva históricamente y se crea una sesión nueva
+con el contexto conversacional persistido.
+
 Se contemplan login persistente con ChatGPT, API key y access tokens de Codex cuando
 el tipo de cuenta y la versión los soporten. Los agentes reutilizan la autenticación
 de la cuenta y no ejecutan `codex login` en cada arranque. La disponibilidad concreta,
@@ -44,3 +49,19 @@ Exponer métricas Prometheus: trabajos por estado, duración, fallos, cola, sesi
 ## Recuperación
 
 Persistir antes y después de efectos externos, deduplicar webhooks, reanudar trabajos pendientes y reconciliar ejecuciones inciertas. No repetir ciegamente cambios en GitHub o commits.
+
+M04.3 mantiene las tareas planificadas fuera del selector general. El operador avanza
+pasos locales y remotos explícitos; push y PR requieren autorización local y cualquier
+resultado incierto se consulta en GitHub antes de repetirlo.
+
+La supervisión M04.4 usa polling manual y cursores lógicos separados por tipo de
+evento. Inferencia, push y respuesta son pasos distintos; solo se reintentan efectos
+reconciliados o contenido ya persistido.
+## Supervisor M04.5
+
+El runtime separa lectura remota, inferencia, escritura local, escritura remota y
+recuperación. Los límites globales y por proyecto/agente/cuenta se complementan con
+exclusión por workspace y PR. Las pausas persistentes no cancelan trabajos en curso ni
+crean autorización. SIGINT/SIGTERM detienen nueva selección; operaciones inciertas se
+conservan. El logging y `supervisor_activity` registran metadatos y errores clasificados,
+nunca tokens ni contenido sensible.

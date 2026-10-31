@@ -64,3 +64,32 @@ Mecanismo exacto de correlación de preguntas cuando un comentario contiene vari
   sustituye la verificación de repositorio, IDs, refs, SHA y autorización persistida.
 - Vibecoder no publica instrucciones para autoaprobar o fusionar el PR.
 - `closed` sin `merged=true` se trata como cierre sin integración y bloquea activación.
+
+## Perfil M04.2 — Issues y planes
+
+- Un comentario ordinario o `/agent main` se dirige al principal.
+- `/agent <agent-id>` permite una consulta a un especialista activo; no autoriza
+  implementación ni altera un plan aprobado.
+- Las respuestas identifican al agente y se correlacionan por IDs remotos persistidos.
+- El plan visible es Markdown con `revision` y `sha256`; la fuente de verdad es JSON
+  validado y congelado.
+- `status:approved` solo autoriza la revisión con un evento nuevo, atribuible y
+  posterior a su publicación. Una etiqueta antigua nunca se hereda.
+
+## Perfil M04.3 — Pull Requests de implementación
+
+- El PR solo procede de una tarea materializada y un workflow M04.3 autorizado.
+- Incluye marcador idempotente, Issue, revisión del plan, tarea, especialista, commit
+  y validaciones; una respuesta perdida se reconcilia con esos datos.
+- Los comentarios no autorizan ejecución, push o merge.
+- Vibecoder no aprueba ni fusiona estos PRs en M04.3.
+
+## Perfil M04.4 — Reviews
+
+- Comentarios generales, reviews y comentarios de línea conservan tipo e ID propios.
+- Por defecto las observaciones técnicas se enrutan al especialista; `/agent main`
+  escala alcance y coordinación.
+- `CHANGES_REQUESTED` no concede autorización ilimitada. Cada corrección necesita
+  clasificación y autorización vinculadas a eventos concretos.
+- Una aprobación solo se considera vigente para el HEAD revisado. Merge se verifica
+  separadamente; `closed` no significa `merged`.

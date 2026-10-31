@@ -175,10 +175,129 @@ _COLUMNS = {
             "result", "detail", "created_at",
         }
     ),
+    "issue_workflows": frozenset(
+        {
+            "id", "project_id", "repository_id", "github_issue_id",
+            "github_issue_node_id", "issue_number", "issue_url", "title", "body",
+            "author_login", "github_state", "labels_json", "principal_agent_id",
+            "status", "approval_label", "active_plan_revision_id", "last_polled_at",
+            "blocked_reason", "created_at", "updated_at",
+        }
+    ),
+    "issue_comments": frozenset(
+        {
+            "id", "workflow_id", "github_comment_id", "github_node_id",
+            "author_login", "author_type", "body", "remote_created_at",
+            "recipient_agent_id", "status", "rejection_reason", "task_id",
+            "session_id", "response_text", "response_github_comment_id",
+            "created_at", "updated_at",
+        }
+    ),
+    "issue_agent_sessions": frozenset(
+        {"id", "workflow_id", "agent_id", "session_id", "account_id",
+         "workspace_path", "instruction_versions_json", "created_at", "updated_at"}
+    ),
+    "plan_revisions": frozenset(
+        {
+            "id", "workflow_id", "revision", "status", "schema_version",
+            "plan_json", "plan_hash", "proposed_by_agent_id",
+            "published_comment_id", "published_at", "approved_by",
+            "approved_event_id", "approved_at", "specialist_snapshot_json",
+            "frozen_context_json", "blocked_reason", "created_at", "updated_at",
+        }
+    ),
+    "planned_tasks": frozenset(
+        {
+            "id", "plan_revision_id", "logical_id", "description",
+            "expected_result", "assigned_agent_id", "acceptance_criteria_json",
+            "restrictions_json", "materialized_task_id", "created_at",
+        }
+    ),
+    "planned_task_dependencies": frozenset(
+        {"plan_revision_id", "task_id", "depends_on_task_id"}
+    ),
+    "plan_approval_events": frozenset(
+        {"id", "plan_revision_id", "github_event_id", "actor_login",
+         "remote_created_at", "created_at"}
+    ),
+    "task_execution_workflows": frozenset(
+        {
+            "id", "project_id", "issue_workflow_id", "plan_revision_id",
+            "planned_task_id", "task_id", "repository_id", "agent_id",
+            "agent_revision_id", "agent_configuration_hash", "instructions_hash",
+            "account_id", "status", "workspace_path", "remote_url", "base_branch",
+            "base_sha", "work_branch", "session_id", "instruction_versions_json",
+            "authorization_snapshot_json", "context_hash", "allowed_paths_json",
+            "validation_commands_json", "validation_authorized_by", "result_text",
+            "validation_result_json", "commit_sha", "published_sha",
+            "pull_request_id", "pull_request_number", "pull_request_url",
+            "merge_commit_sha", "remote_state_json", "blocked_reason",
+            "created_at", "updated_at",
+        }
+    ),
+    "task_execution_operations": frozenset(
+        {"id", "execution_id", "operation_type", "idempotency_key", "status",
+         "expected_ref", "expected_sha", "remote_id", "error_category",
+         "error_message", "started_at", "finished_at"}
+    ),
+    "pull_request_supervisions": frozenset(
+        {"id", "execution_id", "project_id", "repository_id",
+         "pull_request_number", "pull_request_id", "status", "review_state",
+         "observed_head_sha", "observed_base_sha", "merge_commit_sha",
+         "blocked_reason", "last_polled_at", "created_at", "updated_at"}
+    ),
+    "pull_request_events": frozenset(
+        {"id", "supervision_id", "remote_kind", "remote_id", "remote_node_id",
+         "author_id", "author_login", "author_type", "body", "review_state",
+         "commit_sha", "path", "remote_created_at", "remote_updated_at",
+         "authorized", "recipient_agent_id", "status", "rejection_reason",
+         "task_id", "session_id", "response_text", "response_comment_id",
+         "created_at", "updated_at"}
+    ),
+    "pull_request_agent_sessions": frozenset(
+        {"id", "supervision_id", "agent_id", "session_id", "account_id",
+         "instruction_versions_json", "created_at", "updated_at"}
+    ),
+    "pull_request_corrections": frozenset(
+        {"id", "supervision_id", "execution_id", "source_event_ids_json",
+         "description", "scope", "authorized_by", "authorized_at", "status",
+         "previous_sha", "new_sha", "task_id", "session_id", "result_text",
+         "validation_result_json", "commit_sha", "response_text",
+         "response_comment_id", "blocked_reason", "created_at", "updated_at"}
+    ),
+    "supervisor_jobs": frozenset(
+        {"id", "project_id", "job_type", "category", "source_type", "source_id",
+         "state", "priority", "eligible_at", "attempts", "max_attempts",
+         "operation_key", "payload_json", "last_error_category",
+         "last_error_message", "next_action", "runner_id", "lease_token",
+         "lease_acquired_at", "lease_heartbeat_at", "lease_expires_at",
+         "started_at", "finished_at", "created_at", "updated_at"}
+    ),
+    "supervisor_controls": frozenset(
+        {"id", "scope_type", "scope_id", "pause_all", "pause_inference",
+         "pause_publication", "reason", "actor", "created_at", "updated_at"}
+    ),
+    "supervisor_activity": frozenset(
+        {"id", "job_id", "project_id", "event_type", "level", "operation",
+         "state", "duration_ms", "error_category", "message", "details_json",
+         "created_at"}
+    ),
 }
 
 _PRIMARY_KEYS = {
     "specialist_agents": "agent_id",
+    "planned_task_dependencies": "task_id",
+}
+
+_ORDER_COLUMNS = {
+    "execution_attempts": "started_at",
+    "publication_operations": "started_at",
+    "planned_task_dependencies": "plan_revision_id",
+    "task_execution_operations": "started_at",
+    "pull_request_events": "remote_created_at",
+    "pull_request_corrections": "created_at",
+    "supervisor_jobs": "eligible_at",
+    "supervisor_activity": "created_at",
 }
 
 
@@ -286,11 +405,7 @@ class SQLiteRepository:
         if criteria:
             where = " WHERE " + " AND ".join(f"{column} = ?" for column in criteria)
             params.extend(criteria.values())
-        order_column = (
-            "started_at"
-            if table in {"execution_attempts", "publication_operations"}
-            else "created_at"
-        )
+        order_column = _ORDER_COLUMNS.get(table, "created_at")
         primary_key = _PRIMARY_KEYS.get(table, "id")
         suffix = f" ORDER BY {order_column}, {primary_key}"
         if limit is not None:

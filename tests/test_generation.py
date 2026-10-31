@@ -340,6 +340,15 @@ class GeneratedFilesValidatorTests(unittest.TestCase):
             "# Main\n", encoding="utf-8"
         )
 
+    def test_remote_identity_accepts_github_ssh_https_equivalence(self) -> None:
+        self.adapter._run(
+            ("remote", "set-url", "origin", "git@github.com:acme/project.git"),
+            cwd=self.workspace,
+        )
+        self.adapter.verify_remote(self.workspace, "https://github.com/acme/project.git")
+        with self.assertRaises(ConflictError):
+            self.adapter.verify_remote(self.workspace, "https://github.com/other/project.git")
+
     def test_rejects_no_changes_and_missing_instruction_files(self) -> None:
         report = GeneratedFilesValidator(self.adapter).validate(
             self.workspace, "vibecoder/bootstrap-test"

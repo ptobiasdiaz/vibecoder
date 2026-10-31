@@ -128,6 +128,9 @@ class IssueData(_RemoteModel):
     html_url: str
     labels: list[Mapping[str, Any]] = Field(default_factory=list)
     pull_request: Mapping[str, Any] | None = None
+    user: Mapping[str, Any] = Field(default_factory=dict)
+    created_at: str | None = None
+    updated_at: str | None = None
 
 
 class CommentData(_RemoteModel):
@@ -138,6 +141,28 @@ class CommentData(_RemoteModel):
     user: Mapping[str, Any]
     created_at: str
     updated_at: str
+
+
+class PullRequestReviewData(_RemoteModel):
+    id: int
+    node_id: str
+    body: str | None = None
+    state: str
+    user: Mapping[str, Any]
+    commit_id: str | None = None
+    submitted_at: str | None = None
+    html_url: str | None = None
+
+
+class PullRequestReviewCommentData(CommentData):
+    pull_request_review_id: int | None = None
+    commit_id: str | None = None
+    path: str | None = None
+    line: int | None = None
+
+
+class CommitData(_RemoteModel):
+    sha: str
 
 
 class LabelData(_RemoteModel):
@@ -247,6 +272,30 @@ class GitHubHttpClient:
         return self._validated(
             "POST", f"{self._repo_path(owner, name)}/pulls", PullRequestData,
             json={"title": title, "body": body, "head": head, "base": base}, repo=True,
+        )
+
+    def list_pull_request_reviews(
+        self, owner: str, name: str, number: int
+    ) -> Sequence[Mapping[str, Any]]:
+        return self._validated_list(
+            "GET", f"{self._repo_path(owner, name)}/pulls/{number}/reviews",
+            PullRequestReviewData, params={"per_page": 100}, repo=True,
+        )
+
+    def list_pull_request_review_comments(
+        self, owner: str, name: str, number: int
+    ) -> Sequence[Mapping[str, Any]]:
+        return self._validated_list(
+            "GET", f"{self._repo_path(owner, name)}/pulls/{number}/comments",
+            PullRequestReviewCommentData, params={"per_page": 100}, repo=True,
+        )
+
+    def list_pull_request_commits(
+        self, owner: str, name: str, number: int
+    ) -> Sequence[Mapping[str, Any]]:
+        return self._validated_list(
+            "GET", f"{self._repo_path(owner, name)}/pulls/{number}/commits",
+            CommitData, params={"per_page": 100}, repo=True,
         )
 
     def list_issues(self, owner: str, name: str, *, state: str = "open") -> Sequence[Mapping[str, Any]]:

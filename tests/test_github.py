@@ -302,6 +302,26 @@ class GitHubHttpClientTests(unittest.TestCase):
         self.assertEqual(result["number"], 3)
         self.assertEqual(result["head"]["sha"], "b" * 40)
 
+    def test_reads_distinct_review_endpoints_with_validated_models(self) -> None:
+        def handler(request):
+            path = request.url.path
+            if path.endswith("/reviews"):
+                payload = [{"id": 1, "node_id": "R_1", "body": "fix",
+                            "state": "CHANGES_REQUESTED", "user": {"id": 2, "login": "alice"},
+                            "commit_id": "a" * 40, "submitted_at": "2026-10-31T00:00:00Z"}]
+            elif path.endswith("/comments"):
+                payload = [{"id": 2, "node_id": "RC_2", "body": "line", "html_url": "https://x",
+                            "user": {"id": 2, "login": "alice"}, "created_at": "2026-10-31T00:00:00Z",
+                            "updated_at": "2026-10-31T00:00:00Z", "path": "src/a.py"}]
+            else:
+                payload = [{"sha": "a" * 40}]
+            return httpx.Response(200, json=payload)
+        client = self.client(handler)
+        with client:
+            self.assertEqual(client.list_pull_request_reviews("acme", "alpha", 1)[0]["id"], 1)
+            self.assertEqual(client.list_pull_request_review_comments("acme", "alpha", 1)[0]["path"], "src/a.py")
+            self.assertEqual(client.list_pull_request_commits("acme", "alpha", 1)[0]["sha"], "a" * 40)
+
 
 if __name__ == "__main__":
     unittest.main()

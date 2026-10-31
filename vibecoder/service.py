@@ -291,6 +291,8 @@ class OrchestratorCore:
         idempotency_key: str | None = None,
         task_id: str | None = None,
         prompt: str | None = None,
+        _allow_planned: bool = False,
+        _allow_review_correction: bool = False,
     ) -> Task:
         self.get_project(project_id)
         agent = self.get_agent(agent_id)
@@ -298,9 +300,14 @@ class OrchestratorCore:
             raise ConflictError("el agente no pertenece al proyecto de la tarea")
         if agent.status is not AgentStatus.ACTIVE:
             raise ConflictError("no se asignan tareas nuevas a un agente no activo")
-        if self.is_managed_specialist(agent.id):
-            raise ConflictError("la ejecución de especialistas queda fuera de M04.1")
         task_type = _required(task_type, "task_type")
+        if (
+            self.is_managed_specialist(agent.id)
+            and task_type != "ISSUE_CONSULTATION"
+            and not (_allow_planned and task_type == "PLANNED_WORK")
+            and not (_allow_review_correction and task_type == "REVIEW_CORRECTION")
+        ):
+            raise ConflictError("la ejecución de especialistas queda fuera de M04.1")
         idempotency_key = idempotency_key.strip() if idempotency_key else None
         external_ref = external_ref.strip() if external_ref else None
         if idempotency_key:
@@ -349,6 +356,27 @@ class OrchestratorCore:
             return self.get_task(str(existing["id"]))
         return self.get_task(str(values["id"]))
 
+    def create_planned_task(self, planned_task_id: str) -> Task:
+        planned = self.repository.get("planned_tasks", planned_task_id)
+        revision = self.repository.get("plan_revisions", str(planned["plan_revision_id"]))
+        if revision["status"] != "APPROVED":
+            raise ConflictError("solo se materializan tareas de un plan APPROVED")
+        workflow = self.repository.get("issue_workflows", str(revision["workflow_id"]))
+        existing_id = planned.get("materialized_task_id")
+        if existing_id:
+            return self.get_task(str(existing_id))
+        task = self.create_task(
+            str(workflow["project_id"]), str(planned["assigned_agent_id"]),
+            "PLANNED_WORK",
+            external_ref=f"issue:{workflow['issue_number']}:{revision['id']}:{planned['logical_id']}",
+            idempotency_key=f"plan-task:{revision['id']}:{planned['logical_id']}",
+            prompt=None, _allow_planned=True,
+        )
+        self.repository.update(
+            "planned_tasks", planned_task_id, {"materialized_task_id": task.id}
+        )
+        return task
+
     def get_task(self, task_id: str) -> Task:
         row = self.repository.get("tasks", task_id)
         return Task(
@@ -384,6 +412,8 @@ class OrchestratorCore:
     def transition_task(self, task_id: str, requested: TaskStatus | str) -> Task:
         task = self.get_task(task_id)
         requested = TaskStatus(requested)
+        if task.task_type == "PLANNED_WORK" and requested is TaskStatus.RUNNING:
+            raise ConflictError("la ejecución de tareas planificadas queda fuera de M04.2")
         if requested not in TASK_TRANSITIONS[task.status]:
             raise InvalidTransition("task", task.status, requested)
         self.repository.update(
@@ -393,6 +423,8 @@ class OrchestratorCore:
 
     def assign_task(self, task_id: str, agent_id: str) -> Task:
         task = self.get_task(task_id)
+        if task.task_type == "PLANNED_WORK":
+            raise ConflictError("la asignación aprobada de PLANNED_WORK es inmutable")
         if task.status not in {
             TaskStatus.PENDING,
             TaskStatus.WAITING,
@@ -412,12 +444,41 @@ class OrchestratorCore:
         )
         return self.get_task(task_id)
 
-    def start_attempt(self, task_id: str) -> ExecutionAttempt:
+    def start_attempt(
+        self, task_id: str, *, execution_workflow_id: str | None = None
+    ) -> ExecutionAttempt:
         with self.repository.transaction():
             task = self.get_task(task_id)
+            if task.task_type == "PLANNED_WORK":
+                if not execution_workflow_id:
+                    raise ConflictError("PLANNED_WORK requiere autorización M04.3")
+                execution = self.repository.get(
+                    "task_execution_workflows", execution_workflow_id
+                )
+                if (
+                    str(execution["task_id"]) != task.id
+                    or execution["status"] != "RUNNING"
+                ):
+                    raise ConflictError("workflow M04.3 incompatible con la tarea")
+            if task.task_type == "REVIEW_CORRECTION":
+                if not execution_workflow_id:
+                    raise ConflictError("REVIEW_CORRECTION requiere autorización M04.4")
+                correction = self.repository.get(
+                    "pull_request_corrections", execution_workflow_id
+                )
+                if (
+                    str(correction["task_id"]) != task.id
+                    or correction["status"] != "RUNNING"
+                ):
+                    raise ConflictError("corrección M04.4 incompatible con la tarea")
             if self.get_agent(task.agent_id).status is not AgentStatus.ACTIVE:
                 raise ConflictError("el agente de la tarea no está activo")
-            if self.is_managed_specialist(task.agent_id):
+            if (
+                self.is_managed_specialist(task.agent_id)
+                and task.task_type != "ISSUE_CONSULTATION"
+                and not (task.task_type == "PLANNED_WORK" and execution_workflow_id)
+                and not (task.task_type == "REVIEW_CORRECTION" and execution_workflow_id)
+            ):
                 raise ConflictError("la ejecución de especialistas queda fuera de M04.1")
             if TaskStatus.RUNNING not in TASK_TRANSITIONS[task.status]:
                 raise InvalidTransition("task", task.status, TaskStatus.RUNNING)

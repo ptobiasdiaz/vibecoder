@@ -35,6 +35,28 @@ implementa push recuperable, PR con merge exclusivamente humano y activación
 verificada, y su flujo remoto completo está validado live. Sin webhooks, Telegram ni
 despliegue. M04.1 incorpora gestión local persistente y auditada de especialistas,
 configuración versionada integrada en Git, cuentas y sesiones compatibles; su ciclo
-local de activación, persistencia, suspensión y reactivación está validado live. Véanse
+local de activación, persistencia, suspensión y reactivación está validado live. M04.2
+añade coordinación persistente de Issues, consultas de especialistas, planes
+estructurados y tareas aprobadas; el flujo está validado live hasta `MATERIALIZED`.
+M04.3 añade ejecución individual autorizada, workspaces y sesiones por tarea,
+validación, commits, ramas y Pull Requests recuperables; su validación live está
+pendiente. M04.4 añade supervisión de reviews, conversación directa, correcciones
+autorizadas sobre la misma rama y finalización tras merge humano; su validación live
+se realizará conjuntamente con M04.3. M04.5 añade el supervisor continuo local con
+planificación persistente, leases, límites, pausas, recuperación, dry-run y CLI; está
+validado offline y su escenario live integral queda pendiente. Véanse
 [M00](docs/milestones/M00.md), [M01](docs/milestones/M01.md) y
-[M02](docs/milestones/M02.md), y [M04.1](docs/milestones/M04.1.md).
+[M02](docs/milestones/M02.md), [M04.1](docs/milestones/M04.1.md) y
+[M04.3](docs/milestones/M04.3.md), [M04.4](docs/milestones/M04.4.md) y
+[M04.5](docs/milestones/M04.5.md).
+
+## Supervisor continuo
+
+```bash
+.venv/bin/python -m vibecoder.supervisor --config /ruta/supervisor.json config-check
+.venv/bin/python -m vibecoder.supervisor --config /ruta/supervisor.json dry-run
+.venv/bin/python -m vibecoder.supervisor --config /ruta/supervisor.json run
+```
+
+Las publicaciones remotas están deshabilitadas por defecto. El token GitHub se obtiene
+de una variable de entorno y nunca se almacena en el archivo de configuración.

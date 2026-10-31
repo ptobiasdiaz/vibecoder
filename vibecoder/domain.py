@@ -57,6 +57,106 @@ class AgentRevisionStatus(StrEnum):
     REJECTED = "REJECTED"
 
 
+class IssueWorkflowStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    PLANNING = "PLANNING"
+    WAITING_APPROVAL = "WAITING_APPROVAL"
+    APPROVED = "APPROVED"
+    MATERIALIZED = "MATERIALIZED"
+    CLOSED = "CLOSED"
+    BLOCKED = "BLOCKED"
+
+
+class IssueCommentStatus(StrEnum):
+    RECEIVED = "RECEIVED"
+    IGNORED = "IGNORED"
+    REJECTED = "REJECTED"
+    QUEUED = "QUEUED"
+    RUNNING = "RUNNING"
+    RESPONSE_PENDING = "RESPONSE_PENDING"
+    COMPLETED = "COMPLETED"
+    BLOCKED = "BLOCKED"
+
+
+class PlanRevisionStatus(StrEnum):
+    DRAFT = "DRAFT"
+    PROPOSED = "PROPOSED"
+    CONFIRMED = "CONFIRMED"
+    APPROVED = "APPROVED"
+    SUPERSEDED = "SUPERSEDED"
+    BLOCKED = "BLOCKED"
+
+
+class TaskExecutionStatus(StrEnum):
+    READY = "READY"
+    WAITING_DEPENDENCIES = "WAITING_DEPENDENCIES"
+    PREPARING = "PREPARING"
+    WORKSPACE_READY = "WORKSPACE_READY"
+    RUNNING = "RUNNING"
+    GENERATED = "GENERATED"
+    VALIDATING = "VALIDATING"
+    VALIDATED = "VALIDATED"
+    COMMITTED = "COMMITTED"
+    PUSHING = "PUSHING"
+    BRANCH_PUBLISHED = "BRANCH_PUBLISHED"
+    CREATING_PR = "CREATING_PR"
+    PR_OPEN = "PR_OPEN"
+    MERGED = "MERGED"
+    BLOCKED = "BLOCKED"
+    UNKNOWN = "UNKNOWN"
+    FAILED = "FAILED"
+
+
+class PullRequestSupervisionStatus(StrEnum):
+    MONITORING = "MONITORING"
+    REVIEW_PENDING = "REVIEW_PENDING"
+    CHANGES_REQUESTED = "CHANGES_REQUESTED"
+    CORRECTING = "CORRECTING"
+    WAITING_FOR_REVIEW = "WAITING_FOR_REVIEW"
+    APPROVED = "APPROVED"
+    MERGED = "MERGED"
+    CLOSED_UNMERGED = "CLOSED_UNMERGED"
+    BLOCKED = "BLOCKED"
+    UNKNOWN = "UNKNOWN"
+
+
+class CorrectionScope(StrEnum):
+    IN_SCOPE = "IN_SCOPE"
+    OUT_OF_SCOPE = "OUT_OF_SCOPE"
+    AMBIGUOUS = "AMBIGUOUS"
+
+
+class CorrectionStatus(StrEnum):
+    AUTHORIZED = "AUTHORIZED"
+    RUNNING = "RUNNING"
+    GENERATED = "GENERATED"
+    VALIDATED = "VALIDATED"
+    COMMITTED = "COMMITTED"
+    PUSHING = "PUSHING"
+    PUBLISHED = "PUBLISHED"
+    REPLIED = "REPLIED"
+    BLOCKED = "BLOCKED"
+    UNKNOWN = "UNKNOWN"
+
+
+class SupervisorJobState(StrEnum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    RETRY_WAIT = "RETRY_WAIT"
+    SUCCEEDED = "SUCCEEDED"
+    BLOCKED = "BLOCKED"
+    UNKNOWN = "UNKNOWN"
+    CANCELLED = "CANCELLED"
+
+
+class WorkCategory(StrEnum):
+    REMOTE_READ = "REMOTE_READ"
+    CODEX = "CODEX"
+    LOCAL_WRITE = "LOCAL_WRITE"
+    REMOTE_WRITE = "REMOTE_WRITE"
+    RECOVERY = "RECOVERY"
+
+
 class SessionPersistenceState(StrEnum):
     NOT_CREATED = "NOT_CREATED"
     THREAD_CREATED_UNCONFIRMED = "THREAD_CREATED_UNCONFIRMED"
@@ -522,4 +622,131 @@ class AgentAuditEvent:
     result: str
     detail: str | None
     created_at: str
+
+
+@dataclass(frozen=True)
+class IssueWorkflow:
+    id: str
+    project_id: str
+    repository_id: str
+    github_issue_id: int
+    github_issue_node_id: str
+    issue_number: int
+    issue_url: str
+    title: str
+    body: str
+    author_login: str
+    github_state: str
+    labels: tuple[str, ...]
+    principal_agent_id: str
+    status: IssueWorkflowStatus
+    approval_label: str
+    active_plan_revision_id: str | None
+    last_polled_at: str | None
+    blocked_reason: str | None
+    created_at: str
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class PlanRevision:
+    id: str
+    workflow_id: str
+    revision: int
+    status: PlanRevisionStatus
+    plan_hash: str
+    payload: Mapping[str, Any]
+    proposed_by_agent_id: str
+    published_comment_id: int | None
+    published_at: str | None
+    approved_by: str | None
+    approved_event_id: int | None
+    approved_at: str | None
+    specialist_snapshot: Mapping[str, Any] | None
+    frozen_context: Mapping[str, Any] | None
+    blocked_reason: str | None
+    created_at: str
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class TaskExecutionWorkflow:
+    id: str
+    project_id: str
+    issue_workflow_id: str
+    plan_revision_id: str
+    planned_task_id: str
+    task_id: str
+    repository_id: str
+    agent_id: str
+    agent_revision_id: str
+    agent_configuration_hash: str
+    instructions_hash: str
+    account_id: str
+    status: TaskExecutionStatus
+    workspace_path: str
+    remote_url: str
+    base_branch: str
+    base_sha: str
+    work_branch: str
+    session_id: str | None
+    instruction_versions: Mapping[str, str]
+    authorization_snapshot: Mapping[str, Any]
+    context_hash: str | None
+    allowed_paths: tuple[str, ...]
+    validation_commands: tuple[tuple[str, ...], ...]
+    validation_authorized_by: str | None
+    result_text: str | None
+    validation_result: Mapping[str, Any] | None
+    commit_sha: str | None
+    published_sha: str | None
+    pull_request_id: int | None
+    pull_request_number: int | None
+    pull_request_url: str | None
+    merge_commit_sha: str | None
+    remote_state: Mapping[str, Any] | None
+    blocked_reason: str | None
+    created_at: str
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class PullRequestSupervision:
+    id: str
+    execution_id: str
+    project_id: str
+    repository_id: str
+    pull_request_number: int
+    status: PullRequestSupervisionStatus
+    review_state: str
+    observed_head_sha: str
+    merge_commit_sha: str | None
+    blocked_reason: str | None
+    created_at: str
+    updated_at: str
+
+
+@dataclass(frozen=True)
+class SupervisorJob:
+    id: str
+    project_id: str | None
+    job_type: str
+    category: WorkCategory
+    source_type: str
+    source_id: str
+    state: SupervisorJobState
+    priority: int
+    eligible_at: str
+    attempts: int
+    max_attempts: int
+    operation_key: str
+    payload: Mapping[str, Any]
+    last_error_category: str | None
+    last_error_message: str | None
+    next_action: str | None
+    runner_id: str | None
+    lease_token: str | None
+    lease_expires_at: str | None
+    created_at: str
+    updated_at: str
 

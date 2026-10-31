@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from urllib.parse import urlsplit
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
@@ -50,8 +51,28 @@ class GitAdapter:
 
     def verify_remote(self, workspace: Path, expected: str) -> None:
         actual = self._run(("remote", "get-url", "origin"), cwd=workspace).stdout.strip()
-        if actual != expected:
+        if self.remote_identity(actual) != self.remote_identity(expected):
             raise ConflictError("el workspace pertenece a otro remoto")
+
+    @staticmethod
+    def remote_identity(value: str) -> tuple[str, str]:
+        """Compara la identidad host/ruta sin confundir HTTPS y SSH equivalentes."""
+        remote = value.strip()
+        scp = re.fullmatch(r"(?:[^@/]+@)?([^:/]+):(.+)", remote)
+        if scp and "://" not in remote:
+            host, path = scp.group(1).lower(), scp.group(2)
+        else:
+            parsed = urlsplit(remote)
+            if parsed.scheme in {"http", "https", "ssh", "git"} and parsed.hostname:
+                host, path = parsed.hostname.lower(), parsed.path
+            elif parsed.scheme == "file":
+                return "file", str(Path(parsed.path).resolve(strict=False))
+            else:
+                return "file", str(Path(remote).expanduser().resolve(strict=False))
+        normalized = "/" + path.strip("/")
+        if normalized.endswith(".git"):
+            normalized = normalized[:-4]
+        return host, normalized
 
     def default_branch(self, workspace: Path) -> str | None:
         symbolic = self._run(

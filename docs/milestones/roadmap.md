@@ -87,8 +87,36 @@ negocia por GitHub ni ejecuta tareas especializadas. Véase [M04.1](M04.1.md).
 
 ### M04.2 y siguientes
 
-Negociación y aprobación GitHub, PR de cambios del registro, asignación exclusiva por
-el principal y ejecución coordinada se mantienen como hitos posteriores.
+**M04.2 — Estado (2026-10-31): COMPLETADO; FLUJO LIVE VALIDADO.** Descubrimiento y
+conversación real de Issues, consultas del principal y de especialistas, planes
+versionados, aprobación no reutilizable, snapshot y tareas materializadas con
+ejecución bloqueada. La recuperación confirmó el workflow `MATERIALIZED`, las tareas
+`PENDING` y la ausencia de intentos. Véase [M04.2](M04.2.md).
+
+### M04.3 — Ejecución especializada y Pull Requests
+
+**Estado (2026-10-31): COMPLETADO; VALIDACIÓN OFFLINE Y LIVE SUPERADAS.**
+Ejecución ligada a planes aprobados, dependencias por merge verificado, workspace y
+sesión por tarea, validación, commit y publicación/PR idempotentes y recuperables. No
+fusiona ni supervisa reviews. El escenario integral ejecutó dos tareas dependientes y
+demostró que la segunda no se prepara antes del merge de la primera. Véase
+[M04.3](M04.3.md).
+
+### M04.4 — Supervisión de PRs y correcciones
+
+**Estado (2026-10-31): COMPLETADO; VALIDACIÓN OFFLINE Y LIVE SUPERADAS.** Polling
+separado de comentarios/reviews, conversaciones por agente,
+correcciones explícitamente autorizadas, commits/push sobre la misma rama y merge
+humano verificado. No fusiona ni cierra Issues. Véase [M04.4](M04.4.md).
+
+### M04.5 — Operación continua
+
+**Estado (2026-10-31): COMPLETADO; VALIDACIÓN OFFLINE Y LIVE INTEGRAL SUPERADAS.**
+Supervisor monoproceso, scheduler derivado de workflows, dispatcher sobre
+servicios existentes, jobs y leases persistentes, límites multidimensionales, pausas,
+backoff, recuperación conservadora, dry-run y apagado ordenado. No añade autorización,
+merge ni cierre automático. Véase [M04.5](M04.5.md), el
+[procedimiento](M04-live-validation.md) y los [resultados live](M04-live-results.md).
 
 ## M05 — Implementación y PR
 

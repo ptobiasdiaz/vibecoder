@@ -77,15 +77,19 @@ class DebianPackageTests(unittest.TestCase):
     def test_entrypoint_and_migrations_are_packaged(self):
         project = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         self.assertIn('vibecoder-supervisor = "vibecoder.supervisor:main"', project)
+        self.assertIn('vibecoder-admin = "vibecoder.admin:main"', project)
         migrations = resources.files("vibecoder").joinpath("migrations")
         names = sorted(item.name for item in migrations.iterdir() if item.name.endswith(".sql"))
         self.assertEqual(names[0], "0001_initial.sql")
-        self.assertEqual(names[-1], "0012_continuous_supervisor.sql")
+        self.assertEqual(names[-1], "0013_administration.sql")
         links = (DEBIAN / "links").read_text(encoding="utf-8")
         for command in re.findall(r"^(vibecoder-[\w-]+)\s*=", project, re.MULTILINE):
-            if command != "vibecoder-supervisor":
+            if command not in {"vibecoder-supervisor", "vibecoder-admin"}:
                 self.assertIn(f"usr/share/man/man1/{command}.1", links)
         self.assertTrue((DEBIAN / "vibecoder-supervisor.1").is_file())
+        self.assertTrue((DEBIAN / "vibecoder-admin.1").is_file())
+        self.assertIn("var/lib/vibecoder/secrets", (DEBIAN / "dirs").read_text())
+        self.assertIn("0700 /var/lib/vibecoder/secrets", (DEBIAN / "postinst").read_text())
 
     def test_binary_install_manifest_excludes_development_state(self):
         install = (DEBIAN / "install").read_text(encoding="utf-8")

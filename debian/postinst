@@ -14,6 +14,7 @@ install -d -o vibecoder -g vibecoder -m 0750 /var/lib/vibecoder
 install -d -o vibecoder -g vibecoder -m 0750 /var/lib/vibecoder/accounts
 install -d -o vibecoder -g vibecoder -m 0750 /var/lib/vibecoder/workspaces
 install -d -o vibecoder -g vibecoder -m 0750 /var/lib/vibecoder/state
+install -d -o vibecoder -g vibecoder -m 0700 /var/lib/vibecoder/secrets
 
 for file in /etc/vibecoder/supervisor.json /etc/vibecoder/accounts.json; do
     if [ -e "$file" ]; then

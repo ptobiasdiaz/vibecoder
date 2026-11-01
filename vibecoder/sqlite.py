@@ -282,6 +282,12 @@ _COLUMNS = {
          "state", "duration_ms", "error_category", "message", "details_json",
          "created_at"}
     ),
+    "admin_credentials": frozenset(
+        {"id", "provider", "secret_path", "status", "created_at", "updated_at"}
+    ),
+    "admin_audit_events": frozenset(
+        {"id", "actor", "operation", "target_type", "target_id", "result", "detail", "created_at"}
+    ),
 }
 
 _PRIMARY_KEYS = {
@@ -298,6 +304,8 @@ _ORDER_COLUMNS = {
     "pull_request_corrections": "created_at",
     "supervisor_jobs": "eligible_at",
     "supervisor_activity": "created_at",
+    "admin_credentials": "created_at",
+    "admin_audit_events": "created_at",
 }
 
 

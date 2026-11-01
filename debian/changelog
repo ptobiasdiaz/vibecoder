@@ -1,5 +1,6 @@
 vibecoder (0.3.0) unstable; urgency=medium
 
   * Initial Debian package for the persistent supervisor runtime.
+  * Add the secure vibecoder-admin command and credential store.
 
  -- Tobias Diaz <tobias.diaz@uclm.es>  Sat, 31 Oct 2026 17:00:00 +0100

@@ -94,6 +94,9 @@ class OrchestratorCore:
             updated_at=str(row["updated_at"]),
         )
 
+    def list_accounts(self) -> list[CodexAccount]:
+        return [self.get_account(str(row["id"])) for row in self.repository.list("codex_accounts")]
+
     def set_account_status(
         self, account_id: str, status: AccountStatus | str
     ) -> CodexAccount:
@@ -142,6 +145,15 @@ class OrchestratorCore:
 
     def list_projects(self) -> list[Project]:
         return [self.get_project(str(row["id"])) for row in self.repository.list("projects")]
+
+    def configure_project_repository(self, project_id: str, repository: str | None) -> Project:
+        self.get_project(project_id)
+        value = repository.strip() if repository else None
+        self.repository.update(
+            "projects", project_id,
+            {"github_repository": value, "updated_at": _now()},
+        )
+        return self.get_project(project_id)
 
     def transition_project(
         self, project_id: str, requested: ProjectStatus | str

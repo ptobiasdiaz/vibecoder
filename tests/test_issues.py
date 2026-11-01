@@ -205,7 +205,7 @@ class IssueCoordinationTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(upgraded.get("projects", "project")["name"], "legacy")
             self.assertEqual(
                 upgraded.connection.execute("SELECT MAX(version) FROM schema_migrations").fetchone()[0],
-                12,
+                13,
             )
 
     async def test_completed_bootstrap_issue_is_excluded(self):

@@ -41,7 +41,8 @@ estructurados y tareas aprobadas; el flujo está validado live hasta `MATERIALIZ
 M04.3–M04.5 completan ejecución, PRs, reviews, correcciones y supervisor continuo; el
 flujo integral está validado live con dos tareas dependientes y merges humanos. M05.1
 añade el paquete Debian, usuario de servicio, rutas FHS, configuración inicial inerte
-y unidad systemd. Véanse
+y unidad systemd. M05.2 añade `vibecoder-admin`, secretos protegidos, diagnóstico y
+activación operativa segura. Véanse
 [M00](docs/milestones/M00.md), [M01](docs/milestones/M01.md) y
 [M02](docs/milestones/M02.md), [M04.1](docs/milestones/M04.1.md) y
 [M04.3](docs/milestones/M04.3.md), [M04.4](docs/milestones/M04.4.md) y
@@ -53,10 +54,12 @@ y unidad systemd. Véanse
 dpkg-buildpackage -us -uc -b
 sudo apt install ../vibecoder_0.3.0_all.deb
 vibecoder-supervisor --config /etc/vibecoder/supervisor.json status
+sudo vibecoder-admin doctor
 ```
 
 La instalación arranca en `NOT_CONFIGURED` y no realiza operaciones externas. Consulte
-[la guía Debian](docs/installation/debian.md) antes de instalar.
+[la guía Debian](docs/installation/debian.md) y la
+[administración CLI](docs/administration/cli.md) antes de activar el servicio.
 
 ## Supervisor continuo
 
@@ -66,5 +69,6 @@ La instalación arranca en `NOT_CONFIGURED` y no realiza operaciones externas. C
 .venv/bin/python -m vibecoder.supervisor --config /ruta/supervisor.json run
 ```
 
-Las publicaciones remotas están deshabilitadas por defecto. El token GitHub se obtiene
-de una variable de entorno y nunca se almacena en el archivo de configuración.
+Las publicaciones remotas están deshabilitadas por defecto. El token GitHub se
+resuelve por referencia al almacén protegido; se conserva el fallback de entorno para
+compatibilidad y nunca se persiste su valor en configuración.

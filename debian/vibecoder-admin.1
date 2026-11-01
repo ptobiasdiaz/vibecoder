@@ -1,0 +1,28 @@
+.TH VIBECODER-ADMIN 1 "2026-10-31" "vibecoder 0.3.0" "User Commands"
+.SH NAME
+vibecoder-admin \- administer a local vibecoder installation
+.SH SYNOPSIS
+.B vibecoder-admin
+.RI [ --config " FILE" ]
+.RI [ --json ]
+.RI { status | doctor | config | projects | accounts | credentials | agents | service | setup }
+.SH DESCRIPTION
+Provides validated administration without direct JSON or SQLite editing. Mutating
+operations require root. Secrets are accepted from an un-echoed TTY or an already
+open file descriptor and are never accepted as command arguments.
+.SH FILES
+.TP
+.I /etc/vibecoder/supervisor.json
+Validated supervisor configuration.
+.TP
+.I /etc/vibecoder/accounts.json
+Non-secret Codex account runtime configuration.
+.TP
+.I /var/lib/vibecoder/secrets
+Protected credential store.
+.SH SECURITY
+The service user is not an administrator. Local credential revocation does not revoke
+the corresponding token at its remote provider.
+.SH SEE ALSO
+.BR vibecoder-supervisor (1),
+.BR systemctl (1)

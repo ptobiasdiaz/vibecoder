@@ -4,6 +4,8 @@
   "task_workspace_root": "/var/lib/vibecoder/workspaces",
   "authorized_users": [],
   "github_token_env": "VIBECODER_GITHUB_TOKEN",
+  "secrets_dir": "/var/lib/vibecoder/secrets",
+  "github_credential_id": null,
   "operational_state": "NOT_CONFIGURED",
   "inference_enabled": false,
   "publication_enabled": false,

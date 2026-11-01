@@ -129,8 +129,10 @@ endurecida. Véase [M05.1](M05.1.md).
 
 ### M05.2 — Administración CLI
 
-Pendiente: configuración segura de proyectos, cuentas, diagnóstico y transición a
-`READY`.
+**Estado (2026-11-01): COMPLETADO; VALIDACIÓN OFFLINE E INSTALACIÓN AISLADA EN
+DEBIAN FORKY SUPERADAS.** CLI reutilizable, administración de proyectos,
+cuentas y agentes, secretos protegidos, configuración atómica, diagnóstico y ciclo
+`NOT_CONFIGURED → CONFIGURED → READY`. Véase [M05.2](M05.2.md).
 
 ### M05.3 — Configuración debconf
 

@@ -24,6 +24,7 @@ vibecoder-issues = "vibecoder.issues:main"
 vibecoder-tasks = "vibecoder.tasks:main"
 vibecoder-reviews = "vibecoder.reviews:main"
 vibecoder-supervisor = "vibecoder.supervisor:main"
+vibecoder-admin = "vibecoder.admin:main"
 
 [tool.setuptools.packages.find]
 include = ["m00_codex*", "vibecoder*"]

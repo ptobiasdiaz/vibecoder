@@ -57,6 +57,17 @@ resultado incierto se consulta en GitHub antes de repetirlo.
 La supervisión M04.4 usa polling manual y cursores lógicos separados por tipo de
 evento. Inferencia, push y respuesta son pasos distintos; solo se reintentan efectos
 reconciliados o contenido ya persistido.
+
+## Administración M05.2
+
+`vibecoder-admin` separa autoridad local, usuario de servicio, cuentas Codex,
+identidades GitHub y agentes. Las mutaciones requieren root; `vibecoder` no es
+administrador. SQLite conserva identidades/workflows y los JSON validados describen
+el runtime. Los secretos se resuelven por identificador desde el almacén protegido y
+nunca se entregan a Codex.
+
+Habilitación, inferencia y publicación por proyecto son límites adicionales: no
+sustituyen aprobaciones. Un cambio crítico degrada `READY` a `CONFIGURED`.
 ## Supervisor M04.5
 
 El runtime separa lectura remota, inferencia, escritura local, escritura remota y

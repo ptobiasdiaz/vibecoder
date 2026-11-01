@@ -2,3 +2,4 @@ etc/vibecoder
 var/lib/vibecoder/accounts
 var/lib/vibecoder/workspaces
 var/lib/vibecoder/state
+var/lib/vibecoder/secrets

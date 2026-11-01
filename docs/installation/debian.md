@@ -47,8 +47,16 @@ sudo -u vibecoder vibecoder-supervisor \
   --config /etc/vibecoder/supervisor.json status
 ```
 
-M05.2/M05.3 implementarán la transición administrada a `READY`. No cambie el estado
-antes de validar proyectos, cuentas, ejecutable Codex y autorizaciones.
+M05.2 implementa la transición administrada a `READY`:
+
+```bash
+sudo vibecoder-admin doctor
+sudo vibecoder-admin setup validate
+sudo vibecoder-admin setup configure
+sudo vibecoder-admin setup activate
+```
+
+No cambie el JSON manualmente. M05.3 añadirá la preparación mediante debconf.
 
 ## Usuario, directorios y permisos
 
@@ -59,6 +67,7 @@ antes de validar proyectos, cuentas, ejecutable Codex y autorizaciones.
 | `/var/lib/vibecoder` | `vibecoder:vibecoder`, `0750` | base y estado persistente |
 | `/var/lib/vibecoder/accounts` | `vibecoder:vibecoder`, `0750` | `CODEX_HOME` por cuenta |
 | `/var/lib/vibecoder/workspaces` | `vibecoder:vibecoder`, `0750` | workspaces aislados |
+| `/var/lib/vibecoder/secrets` | `vibecoder:vibecoder`, `0700` | secretos individuales `0600` |
 | `/run/vibecoder` | `vibecoder:vibecoder`, `0750` | estado efímero |
 
 No se crea un home interactivo ni se copia autenticación del instalador. Un archivo

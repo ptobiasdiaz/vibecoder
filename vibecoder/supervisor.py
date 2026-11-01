@@ -74,6 +74,9 @@ class ProjectRuntime(BaseModel):
     workspace: Path
     allowed_paths: tuple[str, ...] = ("src", "tests", "doc", "README.md")
     enabled: bool = True
+    inference_enabled: bool = True
+    publication_enabled: bool = True
+    authorized_users: tuple[str, ...] = ()
 
     @field_validator("workspace")
     @classmethod
@@ -92,6 +95,8 @@ class SupervisorConfig(BaseModel):
     projects: dict[str, ProjectRuntime] = Field(default_factory=dict)
     authorized_users: tuple[str, ...] = ()
     github_token_env: str = "VIBECODER_GITHUB_TOKEN"
+    secrets_dir: Path | None = None
+    github_credential_id: str | None = None
     intervals: PollIntervals = Field(default_factory=PollIntervals)
     limits: RuntimeLimits = Field(default_factory=RuntimeLimits)
     inference_enabled: bool = True
@@ -101,7 +106,7 @@ class SupervisorConfig(BaseModel):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     operational_state: Literal["NOT_CONFIGURED", "CONFIGURED", "READY"] = "READY"
 
-    @field_validator("database", "task_workspace_root", "accounts")
+    @field_validator("database", "task_workspace_root", "accounts", "secrets_dir")
     @classmethod
     def absolute_path(cls, value: Path | None, info: Any) -> Path | None:
         if value is None:
@@ -110,6 +115,13 @@ class SupervisorConfig(BaseModel):
         if info.field_name == "accounts" and not path.is_file():
             raise ValueError(f"accounts.json inexistente: {path}")
         return path
+
+    @field_validator("github_credential_id")
+    @classmethod
+    def safe_credential_id(cls, value: str | None) -> str | None:
+        if value is not None and (not value or any(ch not in "abcdefghijklmnopqrstuvwxyz0123456789-" for ch in value)):
+            raise ValueError("github_credential_id inválido")
+        return value
 
     @classmethod
     def load(cls, path: Path) -> "SupervisorConfig":
@@ -546,21 +558,30 @@ class WorkflowDispatcher(Dispatcher):
         project = self.config.projects.get(job.project_id or "")
         if project is None:
             raise ConflictError("falta configuración runtime del proyecto")
-        token = os.environ.get(self.config.github_token_env)
+        token = None
+        if self.config.github_credential_id and self.config.secrets_dir:
+            secret = self.config.secrets_dir / f"{self.config.github_credential_id}.secret"
+            if secret.parent != self.config.secrets_dir or secret.is_symlink():
+                raise ConflictError("referencia de credencial GitHub insegura")
+            try: token = secret.read_text(encoding="utf-8").strip()
+            except OSError as exc: raise ConflictError("credencial GitHub no disponible") from exc
+        if not token:
+            token = os.environ.get(self.config.github_token_env)
         if job.category in {WorkCategory.REMOTE_READ, WorkCategory.REMOTE_WRITE} and not token:
             raise ConflictError(f"falta variable {self.config.github_token_env}")
         accounts = load_account_configs(self.config.accounts) if self.config.accounts else {}
+        authorized_users = project.authorized_users or self.config.authorized_users
         core = OrchestratorCore(self.repository)
         with GitHubHttpClient(GitHubConfig(token=token or "offline")) as client:
             github = GitHubRegistryService(core, client)
             issues = IssueCoordinationService(core, github, accounts, project.workspace,
-                authorized_users=self.config.authorized_users)
+                authorized_users=authorized_users)
             tasks = TaskExecutionService(core, github, accounts, self.config.task_workspace_root,
                 project_workspace=project.workspace)
             reviews = PullRequestReviewService(core, github, accounts, project.workspace,
-                authorized_users=self.config.authorized_users)
+                authorized_users=authorized_users)
             bootstrap = BootstrapService(core, github, accounts,
-                authorized_users=self.config.authorized_users)
+                authorized_users=authorized_users)
             kind, source = job.job_type, job.source_id
             if kind == "RECONCILE_JOB":
                 original = self.repository.get("supervisor_jobs", source)
@@ -721,6 +742,10 @@ class Supervisor:
         project = self.config.projects.get(job.project_id or "")
         if project is not None and not project.enabled:
             return "proyecto deshabilitado"
+        if project is not None and job.category is WorkCategory.CODEX and not project.inference_enabled:
+            return "inferencia deshabilitada para el proyecto"
+        if project is not None and job.category is WorkCategory.REMOTE_WRITE and not project.publication_enabled:
+            return "publicación deshabilitada para el proyecto"
         return self.store.control_reason(job.project_id, job.category)
 
     def _still_recurring(self, job: SupervisorJob) -> bool:

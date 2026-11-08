@@ -288,6 +288,12 @@ _COLUMNS = {
     "admin_audit_events": frozenset(
         {"id", "actor", "operation", "target_type", "target_id", "result", "detail", "created_at"}
     ),
+    "administrative_identities": frozenset(
+        {"id", "identifier", "display_name", "status", "source", "is_initial", "created_at", "updated_at"}
+    ),
+    "maintenance_records": frozenset(
+        {"id", "operation_type", "status", "reference", "details_json", "started_at", "finished_at"}
+    ),
 }
 
 _PRIMARY_KEYS = {
@@ -306,6 +312,8 @@ _ORDER_COLUMNS = {
     "supervisor_activity": "created_at",
     "admin_credentials": "created_at",
     "admin_audit_events": "created_at",
+    "administrative_identities": "created_at",
+    "maintenance_records": "started_at",
 }
 
 
@@ -318,7 +326,11 @@ class SQLiteRepository:
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys = ON")
         self.connection.execute("PRAGMA busy_timeout = 5000")
-        self._migrate()
+        try:
+            self._migrate()
+        except BaseException:
+            self.connection.close()
+            raise
 
     def __enter__(self) -> SQLiteRepository:
         return self
@@ -348,7 +360,16 @@ class SQLiteRepository:
             row[0] for row in self.connection.execute("SELECT version FROM schema_migrations")
         }
         migration_dir = Path(__file__).with_name("migrations")
-        for migration in sorted(migration_dir.glob("[0-9][0-9][0-9][0-9]_*.sql")):
+        migrations = sorted(migration_dir.glob("[0-9][0-9][0-9][0-9]_*.sql"))
+        supported = max(int(path.name.split("_", 1)[0]) for path in migrations)
+        if applied and max(applied) > supported:
+            raise ConflictError(
+                f"esquema SQLite {max(applied)} más reciente que runtime {supported}"
+            )
+        integrity = self.connection.execute("PRAGMA integrity_check").fetchone()[0]
+        if integrity != "ok":
+            raise ConflictError("SQLite no supera integrity_check antes de migrar")
+        for migration in migrations:
             version = int(migration.name.split("_", 1)[0])
             if version in applied:
                 continue

@@ -3,3 +3,5 @@ var/lib/vibecoder/accounts
 var/lib/vibecoder/workspaces
 var/lib/vibecoder/state
 var/lib/vibecoder/secrets
+var/lib/vibecoder/backups
+var/lib/vibecoder/recovery

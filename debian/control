@@ -16,11 +16,13 @@ Homepage: https://github.com/ptobiasdiaz/vibecoder
 
 Package: vibecoder
 Architecture: all
+Pre-Depends: ${misc:Pre-Depends}
 Depends:
  ${misc:Depends},
  ${python3:Depends},
  adduser,
  ca-certificates,
+ debconf (>= 0.5) | debconf-2.0,
  git,
  python3-httpx (>= 0.27),
  python3-pydantic (>= 2.7),

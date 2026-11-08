@@ -1,2 +1,11 @@
 docs/installation/debian.md
+docs/installation/first-run.md
+docs/administration/cli.md
+docs/administration/security.md
 docs/milestones/M05.1.md
+docs/milestones/M05.2.md
+docs/milestones/M05.3.md
+docs/milestones/M05.4.md
+docs/operations/backup-restore.md
+docs/operations/upgrade.md
+docs/operations/recovery.md

@@ -17,8 +17,8 @@ Git y certificados CA son dependencias obligatorias.
 sudo apt install build-essential debhelper dh-python pybuild-plugin-pyproject \
   python3-all python3-setuptools python3-httpx python3-pydantic fakeroot
 dpkg-buildpackage -us -uc -b
-dpkg-deb --info ../vibecoder_0.3.0_all.deb
-dpkg-deb --contents ../vibecoder_0.3.0_all.deb
+dpkg-deb --info ../vibecoder_0.4.0_all.deb
+dpkg-deb --contents ../vibecoder_0.4.0_all.deb
 ```
 
 El artefacto se crea en el directorio padre. No incluye `.git`, `.venv`, tests, bases
@@ -31,7 +31,7 @@ porque crearía una referencia circular.
 ## Instalación y primer arranque
 
 ```bash
-sudo apt install ./vibecoder_0.3.0_all.deb
+sudo apt install ./vibecoder_0.4.0_all.deb
 systemctl status vibecoder.service
 journalctl -u vibecoder.service
 ```
@@ -56,7 +56,10 @@ sudo vibecoder-admin setup configure
 sudo vibecoder-admin setup activate
 ```
 
-No cambie el JSON manualmente. M05.3 añadirá la preparación mediante debconf.
+No cambie el JSON manualmente. M05.3 integra debconf para un identificador
+administrativo opcional y proporciona
+`vibecoder-admin setup init`. Debconf no almacena credenciales ni activa `READY`.
+Consulte [Primera configuración](first-run.md).
 
 ## Usuario, directorios y permisos
 
@@ -96,3 +99,15 @@ Las actualizaciones conservan conffiles y `/var/lib/vibecoder`; SQLite aplica
 migraciones incrementales. Tanto `remove` como `purge` preservan datos, sesiones,
 workspaces e identidad. Tras archivarlos, un administrador puede eliminarlos
 manualmente. Nunca se eliminan workspaces externos como efecto de la purga.
+
+Desde 0.4.0, los upgrades crean un backup pre-migración en
+`/var/lib/vibecoder/backups`. Para una ventana controlada use primero:
+
+```bash
+sudo vibecoder-admin service pause --kind all --reason upgrade
+sudo systemctl stop vibecoder.service
+sudo vibecoder-admin maintenance prepare-upgrade --offline
+```
+
+No instale un runtime anterior sobre un esquema más reciente. Consulte
+[Actualizaciones](../operations/upgrade.md).

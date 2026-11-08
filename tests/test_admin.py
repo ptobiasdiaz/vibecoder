@@ -6,6 +6,7 @@ import os
 import stat
 import tempfile
 import unittest
+from unittest.mock import patch
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
@@ -104,9 +105,62 @@ class AdministrationTests(unittest.TestCase):
 
     def test_cli_json_and_authorization_exit_code(self):
         output = io.StringIO()
-        with redirect_stdout(output):
+        with patch("vibecoder.admin.os.geteuid", return_value=0), redirect_stdout(output):
             code = main(["--config", str(self.config), "--json", "doctor"])
         self.assertEqual(code, 0); self.assertIn("operational_state", json.loads(output.getvalue()))
+
+    def test_initial_identity_is_stable_idempotent_and_audited(self):
+        first = self.service.create_initial_identity("admin", "Local Admin", source="cli")
+        second = self.service.create_initial_identity("admin", "Ignored", source="cli")
+        self.assertEqual(first["id"], second["id"])
+        self.assertEqual(second["display_name"], "Local Admin")
+        with self.assertRaises(Exception):
+            self.service.create_initial_identity("other", source="debconf")
+        with self.service._repo() as repo:
+            events = repo.list("admin_audit_events", operation="CREATE_INITIAL_IDENTITY")
+        self.assertEqual(len(events), 1)
+        self.assertNotIn("Ignored", json.dumps(events))
+
+    def test_setup_init_is_resumable_and_does_not_activate_by_default(self):
+        first = self.service.setup_init(admin_identifier="admin")
+        second = self.service.setup_init(admin_identifier="admin")
+        self.assertEqual(first["initial_identity"]["id"], second["initial_identity"]["id"])
+        self.assertEqual(second["operational_state"], "CONFIGURED")
+        self.assertIn("codex_account", second["missing"])
+        self.assertNotEqual(second["operational_state"], "READY")
+
+    def test_noninteractive_cli_initializes_without_tty_or_activation(self):
+        output = io.StringIO()
+        with patch("vibecoder.admin.os.geteuid", return_value=0), redirect_stdout(output):
+            code = main(["--config", str(self.config), "--json", "setup", "init",
+                         "--non-interactive", "--admin-id", "automation"])
+        self.assertEqual(code, 0)
+        payload = json.loads(output.getvalue())
+        self.assertEqual(payload["initial_identity"]["identifier"], "automation")
+        self.assertEqual(payload["operational_state"], "CONFIGURED")
+
+    def test_bootstrap_admin_with_empty_identifier_only_migrates(self):
+        output = io.StringIO()
+        with patch("vibecoder.admin.os.geteuid", return_value=0), redirect_stdout(output):
+            code = main(["--config", str(self.config), "--json", "setup", "bootstrap-admin",
+                         "--source", "debconf"])
+        self.assertEqual(code, 0)
+        self.assertIsNone(json.loads(output.getvalue())["identity"])
+        self.assertEqual(self.service.identities(), [])
+
+    def test_interactive_wizard_defaults_to_no_activation(self):
+        answers = iter(["operator", "Local Operator", "n", "n", "n", "n"])
+        output = io.StringIO()
+        with patch("vibecoder.admin.os.geteuid", return_value=0), \
+             patch("vibecoder.admin.sys.stdin.isatty", return_value=True), \
+             patch("builtins.input", side_effect=lambda _prompt="": next(answers)), \
+             redirect_stdout(output):
+            code = main(["--config", str(self.config), "--json", "setup", "init"])
+        self.assertEqual(code, 0)
+        payload = json.loads(output.getvalue())
+        self.assertEqual(payload["initial_identity"]["identifier"], "operator")
+        self.assertEqual(payload["operational_state"], "CONFIGURED")
+        self.assertNotEqual(payload["operational_state"], "READY")
 
 
 if __name__ == "__main__": unittest.main()

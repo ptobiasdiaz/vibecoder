@@ -1,4 +1,4 @@
-.TH VIBECODER-ADMIN 1 "2026-10-31" "vibecoder 0.3.0" "User Commands"
+.TH VIBECODER-ADMIN 1 "2026-11-08" "vibecoder 0.4.0" "User Commands"
 .SH NAME
 vibecoder-admin \- administer a local vibecoder installation
 .SH SYNOPSIS
@@ -10,6 +10,18 @@ vibecoder-admin \- administer a local vibecoder installation
 Provides validated administration without direct JSON or SQLite editing. Mutating
 operations require root. Secrets are accepted from an un-echoed TTY or an already
 open file descriptor and are never accepted as command arguments.
+.PP
+.B setup init
+provides a resumable first-run wizard. Its non-interactive mode applies only explicit
+values and never activates READY unless --activate is supplied.
+.PP
+.B backup create|list|inspect|verify|restore
+manages versioned private backups. Creation and restore require an explicit offline
+confirmation, persistent pause and no active leases. Restore always establishes an
+operational recovery barrier.
+.PP
+.B maintenance status|check|reconcile|prepare-upgrade|finish-upgrade
+inspects and recovers maintenance state without contacting GitHub or Codex.
 .SH FILES
 .TP
 .I /etc/vibecoder/supervisor.json

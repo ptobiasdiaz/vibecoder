@@ -1,6 +1,14 @@
+vibecoder (0.4.0) unstable; urgency=medium
+
+  * Add consistent local backups, staged restore and recovery barriers.
+  * Add conservative pre-migration package upgrade backup and schema checks.
+
+ -- Tobias Diaz <tobias.diaz@uclm.es>  Sun, 08 Nov 2026 12:00:00 +0100
+
 vibecoder (0.3.0) unstable; urgency=medium
 
   * Initial Debian package for the persistent supervisor runtime.
   * Add the secure vibecoder-admin command and credential store.
+  * Add non-secret debconf bootstrap and resumable first-run initialization.
 
  -- Tobias Diaz <tobias.diaz@uclm.es>  Sat, 31 Oct 2026 17:00:00 +0100

@@ -136,11 +136,18 @@ cuentas y agentes, secretos protegidos, configuración atómica, diagnóstico y 
 
 ### M05.3 — Configuración debconf
 
-Pendiente: configuración inicial integrada con el ciclo Debian.
+**Estado (2026-11-07): COMPLETADO; VALIDACIÓN OFFLINE E INSTALACIÓN AISLADA EN
+DEBIAN FORKY SUPERADAS.**
+Debconf no secreto, identidad administrativa atributiva, bootstrap idempotente y
+asistente reanudable con activación explícita. Véase [M05.3](M05.3.md).
 
 ### M05.4 — Actualización y backups
 
-Pendiente: política completa de backup, migración y rollback.
+**Estado (2026-11-08): COMPLETADO; VALIDACIÓN OFFLINE, UPGRADE REAL 0.3.0→0.4.0
+Y RESTAURACIÓN AISLADA SUPERADOS EN DEBIAN FORKY.**
+Backups versionados y verificados, restauración con staging/journal, barrera de
+recuperación, rechazo de esquema futuro y backup pre-migración APT. Véase
+[M05.4](M05.4.md).
 
 ## M06 — Operación multicuenta
 

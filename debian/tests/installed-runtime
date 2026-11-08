@@ -6,6 +6,13 @@ runuser -u vibecoder -- vibecoder-supervisor \
 test "$(runuser -u vibecoder -- vibecoder-supervisor \
     --config /etc/vibecoder/supervisor.json once \
     | python3 -c 'import json,sys; print(json.load(sys.stdin)["inactive"])')" = 1
+vibecoder-admin --help >/dev/null
+test "$(python3 - <<'PY'
+import sqlite3
+c = sqlite3.connect('/var/lib/vibecoder/vibecoder.db')
+print(c.execute('SELECT MAX(version) FROM schema_migrations').fetchone()[0])
+PY
+)" = 15
 unit=/usr/lib/systemd/system/vibecoder.service
 test -e "$unit" || unit=/lib/systemd/system/vibecoder.service
 systemd-analyze verify "$unit"

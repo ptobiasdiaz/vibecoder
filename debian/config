@@ -1,0 +1,10 @@
+#!/bin/sh
+set -e
+
+. /usr/share/debconf/confmodule
+
+db_input medium vibecoder/initial-admin-id || true
+db_input low vibecoder/show-first-run-hint || true
+db_go || true
+
+exit 0

@@ -7,6 +7,17 @@ cuando el operador ya ha verificado el destino.
 
 ## Primera configuración
 
+El asistente reanudable es:
+
+```bash
+sudo vibecoder-admin setup init
+sudo vibecoder-admin setup init --non-interactive --admin-id automation
+```
+
+La identidad registrada sirve para atribución/auditoría; no sustituye la autorización
+UID 0. `--non-interactive` solo aplica parámetros explícitos y nunca activa sin
+`--activate`.
+
 ```bash
 sudo vibecoder-admin accounts add --name primary --auth-type CHATGPT \
   --codex-home /var/lib/vibecoder/accounts/primary \
@@ -38,6 +49,11 @@ evaluar workflows que ya tengan sus propias autorizaciones.
 - `agents list|show|status|disable`.
 - `service status|readiness|pause|resume`.
 - `setup status|validate|configure|activate|deactivate`.
+- `backup create|list|inspect|verify|restore`.
+- `maintenance status|check|reconcile|prepare-upgrade|finish-upgrade`.
+
+Backup y restore exigen `--offline`; restore exige además confirmación o `--yes`. Una
+restauración nunca conserva `READY`: instala una barrera `CONFIGURED` y pausa global.
 
 `doctor` comprueba configuración, SQLite, rutas, Git, cuentas y jobs sin inferencia,
 red ni cambios de estado. Los códigos son: 0 éxito, 2 uso, 3 autorización, 4

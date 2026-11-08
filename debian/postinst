@@ -15,6 +15,8 @@ install -d -o vibecoder -g vibecoder -m 0750 /var/lib/vibecoder/accounts
 install -d -o vibecoder -g vibecoder -m 0750 /var/lib/vibecoder/workspaces
 install -d -o vibecoder -g vibecoder -m 0750 /var/lib/vibecoder/state
 install -d -o vibecoder -g vibecoder -m 0700 /var/lib/vibecoder/secrets
+install -d -o vibecoder -g vibecoder -m 0700 /var/lib/vibecoder/backups
+install -d -o vibecoder -g vibecoder -m 0700 /var/lib/vibecoder/recovery
 
 for file in /etc/vibecoder/supervisor.json /etc/vibecoder/accounts.json; do
     if [ -e "$file" ]; then
@@ -22,5 +24,38 @@ for file in /etc/vibecoder/supervisor.json /etc/vibecoder/accounts.json; do
         chmod 0640 "$file"
     fi
 done
+
+# Initialize/migrate through the Python administration service, never ad-hoc SQL.
+# debconf contains only a non-secret attribution identifier.
+. /usr/share/debconf/confmodule
+db_get vibecoder/initial-admin-id || RET=
+initial_admin_id=${RET:-}
+if [ -n "${2:-}" ]; then
+    vibecoder-admin --config /etc/vibecoder/supervisor.json \
+        maintenance package-upgrade --previous-version "$2" >/dev/null
+fi
+if [ -n "$initial_admin_id" ]; then
+    if ! vibecoder-admin --config /etc/vibecoder/supervisor.json setup bootstrap-admin \
+        --admin-id "$initial_admin_id" --source debconf >/dev/null; then
+        echo "vibecoder: initial administrator was not changed; run 'vibecoder-admin setup init'" >&2
+    fi
+else
+    vibecoder-admin --config /etc/vibecoder/supervisor.json setup bootstrap-admin \
+        --source debconf >/dev/null
+fi
+
+vibecoder-admin --config /etc/vibecoder/supervisor.json \
+    maintenance finish-upgrade --previous-version "${2:-}" >/dev/null
+
+if [ -e /var/lib/vibecoder/vibecoder.db ]; then
+    chown vibecoder:vibecoder /var/lib/vibecoder/vibecoder.db
+    chmod 0640 /var/lib/vibecoder/vibecoder.db
+fi
+
+db_get vibecoder/show-first-run-hint || RET=false
+if [ "${RET:-false}" = true ]; then
+    echo "vibecoder remains NOT_CONFIGURED. Continue with: sudo vibecoder-admin setup init"
+fi
+db_stop
 
 #DEBHELPER#

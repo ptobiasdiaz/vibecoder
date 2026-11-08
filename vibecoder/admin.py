@@ -144,10 +144,10 @@ class FileSecretStore:
 
 class AdministrationService:
     def __init__(self, config_path: Path, *, secrets_dir: Path | None = None,
-                 uid_getter: Callable[[], int] = os.geteuid):
+                 uid_getter: Callable[[], int] | None = None):
         self.config_path = config_path.resolve()
         self.config_file = AtomicJsonFile(self.config_path)
-        self.uid_getter = uid_getter
+        self.uid_getter = uid_getter or os.geteuid
         self.config = SupervisorConfig.load(self.config_path)
         self.secrets = FileSecretStore(secrets_dir or self.config.secrets_dir or self.config.database.parent / "secrets")
 
@@ -166,6 +166,144 @@ class AdministrationService:
 
     def _refresh(self) -> None:
         self.config = SupervisorConfig.load(self.config_path)
+
+    def _audit(self, operation: str, target_type: str, target_id: str | None,
+               result: str = "COMPLETED", detail: str | None = None,
+               *, actor: str = "uid:0") -> None:
+        """Registra metadatos administrativos; ``detail`` nunca contiene secretos."""
+        with self._repo() as repo:
+            repo.insert("admin_audit_events", {
+                "id": str(uuid4()), "actor": actor, "operation": operation,
+                "target_type": target_type, "target_id": target_id,
+                "result": result, "detail": detail, "created_at": _now(),
+            })
+
+    def initialize_storage(self) -> dict[str, Any]:
+        """Aplica migraciones mediante el repositorio oficial; idempotente."""
+        self.require_admin()
+        with self._repo() as repo:
+            version = int(repo.connection.execute(
+                "SELECT COALESCE(MAX(version), 0) FROM schema_migrations"
+            ).fetchone()[0])
+        return {"database": str(self.config.database), "schema_version": version}
+
+    def identities(self) -> list[dict[str, Any]]:
+        with self._repo() as repo:
+            return repo.list("administrative_identities")
+
+    def create_initial_identity(self, identifier: str, display_name: str | None = None,
+                                *, source: str = "cli") -> dict[str, Any]:
+        self.require_admin(); identifier = identifier.strip().lower()
+        if not _SAFE_ID.fullmatch(identifier):
+            raise ValidationError("identificador administrativo inválido")
+        display_name = (display_name or identifier).strip()
+        if not display_name or len(display_name) > 128:
+            raise ValidationError("nombre administrativo inválido")
+        if source not in {"cli", "debconf"}:
+            raise ValidationError("procedencia administrativa inválida")
+        with self._repo() as repo:
+            initial = repo.find_one("administrative_identities", is_initial=1)
+            if initial:
+                if str(initial["identifier"]) != identifier:
+                    raise ConflictError("ya existe otra identidad administrativa inicial")
+                return initial
+            now, identity_id = _now(), str(uuid4())
+            with repo.transaction():
+                repo.insert("administrative_identities", {
+                    "id": identity_id, "identifier": identifier,
+                    "display_name": display_name, "status": "ACTIVE",
+                    "source": source, "is_initial": 1,
+                    "created_at": now, "updated_at": now,
+                })
+                repo.insert("admin_audit_events", {
+                    "id": str(uuid4()), "actor": "uid:0",
+                    "operation": "CREATE_INITIAL_IDENTITY",
+                    "target_type": "ADMIN_IDENTITY", "target_id": identity_id,
+                    "result": "COMPLETED", "detail": f"source={source}",
+                    "created_at": now,
+                })
+            return repo.get("administrative_identities", identity_id)
+
+    def initialization_status(self) -> dict[str, Any]:
+        identities = self.identities()
+        accounts = self.list_accounts()
+        credentials = self.credentials()
+        projects = self.list_projects()
+        missing = []
+        if not any(item["is_initial"] for item in identities): missing.append("administrative_identity")
+        if not accounts: missing.append("codex_account")
+        if not any(item["status"] == "ACTIVE" for item in credentials): missing.append("github_credential")
+        if not projects: missing.append("project")
+        if not any(item.get("runtime") and item["runtime"]["enabled"] for item in projects):
+            missing.append("enabled_project")
+        return {"operational_state": self.config.operational_state,
+                "initial_identity": next((item for item in identities if item["is_initial"]), None),
+                "accounts": len(accounts), "credentials": len(credentials),
+                "projects": len(projects), "missing": missing,
+                "ready_possible": not missing}
+
+    def setup_init(self, *, admin_identifier: str | None = None,
+                   admin_name: str | None = None, source: str = "cli",
+                   account: Mapping[str, Any] | None = None,
+                   credential: Mapping[str, Any] | None = None,
+                   project: Mapping[str, Any] | None = None,
+                   activate: bool = False) -> dict[str, Any]:
+        """Orquesta operaciones atómicas existentes; seguro para reanudación."""
+        self.require_admin(); self.initialize_storage()
+        self._audit("INITIALIZATION_START", "INSTALLATION", None, detail=f"source={source}")
+        try:
+            if admin_identifier:
+                self.create_initial_identity(admin_identifier, admin_name, source=source)
+            account_value = None
+            if account:
+                account_value = next((item for item in self.list_accounts()
+                                      if item["name"] == account["name"]), None)
+                if account_value is None:
+                    account_value = self.add_account(
+                        str(account["name"]), str(account["auth_type"]),
+                        Path(account["codex_home"]), str(account["executable"]),
+                        Path(account["cwd"]), float(account.get("timeout", 600)),
+                    )
+            if credential:
+                credential_id = str(credential["id"])
+                if not any(item["id"] == credential_id for item in self.credentials()):
+                    self.add_credential("github", bytes(credential["secret"]), credential_id)
+                if self.config.github_credential_id != credential_id:
+                    self.config_set("github_credential_id", credential_id)
+            if project:
+                if account_value is None:
+                    account_id = str(project.get("account_id") or "")
+                    if not account_id: raise ValidationError("el proyecto requiere una cuenta")
+                else: account_id = str(account_value["id"])
+                project_value = next((item for item in self.list_projects()
+                                      if item["name"] == project["name"]), None)
+                if project_value is None:
+                    project_value = self.add_project(str(project["name"]), account_id,
+                                                     str(project["repository"]))
+                if not project_value.get("runtime"):
+                    self.configure_project(
+                        str(project_value["id"]), repository=str(project["repository"]),
+                        workspace=Path(project["workspace"]),
+                        authorized_users=list(project.get("authorized_users", [])),
+                        inference_enabled=bool(project.get("inference_enabled", False)),
+                        publication_enabled=bool(project.get("publication_enabled", False)),
+                    )
+                if bool(project.get("enabled", False)) and not self.project(str(project_value["id"]))["runtime"]["enabled"]:
+                    self.set_project_enabled(str(project_value["id"]), True)
+            report = self.doctor()
+            if self.config.operational_state == "NOT_CONFIGURED" and not any(
+                    item["level"] == "ERROR" for item in report["checks"]):
+                self.setup_configure()
+            if activate:
+                self.setup_activate()
+            result = self.initialization_status()
+            self._audit("INITIALIZATION_FINISH", "INSTALLATION", None,
+                        detail=f"state={result['operational_state']}")
+            return result
+        except Exception as exc:
+            self._audit("INITIALIZATION_FAIL", "INSTALLATION", None, "FAILED",
+                        detail=type(exc).__name__)
+            raise
 
     def _write_config(self, mutate: Callable[[dict[str, Any]], None]) -> SupervisorConfig:
         self.require_admin()
@@ -374,13 +512,16 @@ class AdministrationService:
             bits = path.split(".")
             for bit in bits[:-1]: target = target.setdefault(bit, {})
             target[bits[-1]] = parsed
-        return self._write_config(mutate).model_dump(mode="json")
+        result = self._write_config(mutate).model_dump(mode="json")
+        self._audit("CONFIG_SET", "CONFIGURATION", key)
+        return result
 
     def setup_configure(self) -> dict[str, Any]:
         self.require_admin(); report = self.doctor()
         if any(item["level"] == "ERROR" for item in report["checks"]):
             raise ConflictError("el diagnóstico contiene errores")
         self.config_file.update(lambda raw: {**raw, "operational_state": "CONFIGURED"}); self._refresh()
+        self._audit("SETUP_CONFIGURE", "OPERATIONAL_STATE", "CONFIGURED")
         return self.status()
 
     def setup_activate(self) -> dict[str, Any]:
@@ -392,10 +533,12 @@ class AdministrationService:
         if not accounts or not all(self.check_account(a["id"])["ok"] for a in accounts if a["status"] != "DISABLED"):
             raise ConflictError("cuentas Codex incompletas")
         self.config_file.update(lambda raw: {**raw, "operational_state": "READY"}); self._refresh()
+        self._audit("SETUP_ACTIVATE", "OPERATIONAL_STATE", "READY")
         return self.status()
 
     def setup_deactivate(self) -> dict[str, Any]:
         self.require_admin(); self.config_file.update(lambda raw: {**raw, "operational_state": "CONFIGURED"}); self._refresh()
+        self._audit("SETUP_DEACTIVATE", "OPERATIONAL_STATE", "CONFIGURED")
         return self.status()
 
     def service_pause(self, kind: str, reason: str) -> dict[str, Any]:
@@ -483,9 +626,78 @@ def _secret_from_args(args: argparse.Namespace) -> bytes:
     return getpass.getpass("Token GitHub: ").encode()
 
 
+def _yes(prompt: str) -> bool:
+    return input(f"{prompt} [y/N] ").strip().lower() in {"y", "yes", "s", "si", "sí"}
+
+
+def _setup_init(service: AdministrationService, args: argparse.Namespace) -> dict[str, Any]:
+    """Recoge entradas; toda mutación permanece en ``AdministrationService``."""
+    interactive = not args.non_interactive
+    if interactive and not sys.stdin.isatty():
+        raise ValidationError("setup init interactivo requiere TTY; use --non-interactive")
+    admin_id, admin_name = args.admin_id, args.admin_name
+    if interactive and not service.identities():
+        admin_id = input("Identificador del administrador inicial (vacío para posponer): ").strip() or None
+        if admin_id: admin_name = input(f"Nombre descriptivo [{admin_id}]: ").strip() or admin_id
+    account = None
+    configure_account = bool(args.account_name)
+    if interactive and not service.list_accounts(): configure_account = _yes("¿Configurar ahora una cuenta Codex?")
+    if configure_account:
+        name = args.account_name or (input("Nombre lógico de la cuenta: ").strip() if interactive else "")
+        auth_type = args.auth_type or (input("Tipo [CHATGPT/API_KEY/ACCESS_TOKEN]: ").strip().upper() if interactive else "")
+        home_text = input("CODEX_HOME absoluto: ").strip() if interactive and args.codex_home is None else ""
+        home = args.codex_home or (Path(home_text) if home_text else None)
+        executable = args.codex_executable or (input("Ejecutable Codex [codex]: ").strip() if interactive else "") or "codex"
+        cwd_text = input("Directorio de trabajo absoluto: ").strip() if interactive and args.cwd is None else ""
+        cwd = args.cwd or (Path(cwd_text) if cwd_text else None)
+        if not all((name, auth_type, home, executable, cwd)):
+            raise ValidationError("faltan parámetros de la cuenta Codex")
+        account = {"name": name, "auth_type": auth_type, "codex_home": home,
+                   "executable": executable, "cwd": cwd}
+    credential = None
+    configure_credential = bool(args.github_credential_id)
+    if interactive and not service.credentials(): configure_credential = _yes("¿Registrar ahora un token GitHub?")
+    if configure_credential:
+        credential_id = args.github_credential_id or input("Identificador de credencial [github-main]: ").strip() or "github-main"
+        secret = _secret_from_args(args)
+        credential = {"id": credential_id, "secret": secret}
+    project = None
+    configure_project = bool(args.project_name)
+    if interactive and not service.list_projects(): configure_project = _yes("¿Registrar ahora un proyecto?")
+    if configure_project:
+        name = args.project_name or (input("Nombre del proyecto: ").strip() if interactive else "")
+        repository = args.repository or (input("Repositorio GitHub owner/name: ").strip() if interactive else "")
+        workspace_text = input("Workspace local absoluto (debe existir): ").strip() if interactive and args.workspace is None else ""
+        workspace = args.workspace or (Path(workspace_text) if workspace_text else None)
+        users = args.authorized_user or []
+        if interactive and not users:
+            login = input("Usuario GitHub autorizado (vacío para posponer): ").strip()
+            users = [login] if login else []
+        account_id = args.account_id
+        existing_accounts = service.list_accounts()
+        if account is None and not account_id and len(existing_accounts) == 1:
+            account_id = str(existing_accounts[0]["id"])
+        if account is None and not account_id and interactive:
+            account_id = input("UUID de cuenta Codex para el proyecto: ").strip()
+        if not name or not repository or not workspace:
+            raise ValidationError("faltan parámetros del proyecto")
+        project = {"name": name, "repository": repository, "workspace": workspace,
+                   "authorized_users": users, "account_id": args.account_id,
+                   "inference_enabled": args.enable_inference,
+                   "publication_enabled": args.enable_publication,
+                   "enabled": args.enable_project}
+        project["account_id"] = account_id
+    activate = args.activate
+    if interactive and not activate: activate = _yes("¿Activar READY tras validar todos los requisitos?")
+    return service.setup_init(admin_identifier=admin_id, admin_name=admin_name,
+                              account=account, credential=credential, project=project,
+                              activate=activate)
+
+
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="vibecoder-admin")
     p.add_argument("--config", type=Path, default=Path("/etc/vibecoder/supervisor.json")); p.add_argument("--secrets-dir", type=Path)
+    p.add_argument("--backup-root", type=Path)
     p.add_argument("--json", action="store_true"); p.add_argument("--yes", action="store_true")
     sub = p.add_subparsers(dest="group", required=True)
     sub.add_parser("status"); sub.add_parser("doctor")
@@ -510,11 +722,36 @@ def _parser() -> argparse.ArgumentParser:
         if action == "replace": q.add_argument("--fd", type=int)
     setup = sub.add_parser("setup").add_subparsers(dest="action", required=True)
     for action in ("status", "validate", "configure", "activate", "deactivate"): setup.add_parser(action)
+    init = setup.add_parser("init"); init.add_argument("--non-interactive", action="store_true")
+    init.add_argument("--admin-id"); init.add_argument("--admin-name")
+    init.add_argument("--account-name"); init.add_argument("--auth-type", choices=[x.value for x in AuthType])
+    init.add_argument("--codex-home", type=Path); init.add_argument("--codex-executable")
+    init.add_argument("--cwd", type=Path); init.add_argument("--github-credential-id")
+    init.add_argument("--fd", type=int); init.add_argument("--project-name")
+    init.add_argument("--repository"); init.add_argument("--workspace", type=Path)
+    init.add_argument("--account-id"); init.add_argument("--authorized-user", action="append", default=[])
+    init.add_argument("--enable-inference", action="store_true"); init.add_argument("--enable-publication", action="store_true")
+    init.add_argument("--enable-project", action="store_true"); init.add_argument("--activate", action="store_true")
+    bootstrap = setup.add_parser("bootstrap-admin", help=argparse.SUPPRESS)
+    bootstrap.add_argument("--admin-id"); bootstrap.add_argument("--admin-name")
+    bootstrap.add_argument("--source", choices=["debconf", "cli"], default="debconf")
     service = sub.add_parser("service").add_subparsers(dest="action", required=True); service.add_parser("status"); service.add_parser("readiness"); service.add_parser("resume")
     sp = service.add_parser("pause"); sp.add_argument("--kind", choices=["all", "inference", "publication"], default="all"); sp.add_argument("--reason", default="administrative pause")
     agents = sub.add_parser("agents").add_subparsers(dest="action", required=True); al = agents.add_parser("list"); al.add_argument("--project", required=True)
     for action in ("show", "status", "disable"):
         q = agents.add_parser(action); q.add_argument("id")
+    backup = sub.add_parser("backup").add_subparsers(dest="action", required=True)
+    bc = backup.add_parser("create"); bc.add_argument("--offline", action="store_true"); bc.add_argument("--id")
+    backup.add_parser("list")
+    for action in ("inspect", "verify"):
+        q = backup.add_parser(action); q.add_argument("backup")
+    br = backup.add_parser("restore"); br.add_argument("backup"); br.add_argument("--offline", action="store_true")
+    maintenance = sub.add_parser("maintenance").add_subparsers(dest="action", required=True)
+    maintenance.add_parser("status"); maintenance.add_parser("check")
+    mr = maintenance.add_parser("reconcile"); mr.add_argument("--offline", action="store_true"); mr.add_argument("--rollback", action="store_true")
+    mu = maintenance.add_parser("prepare-upgrade"); mu.add_argument("--offline", action="store_true")
+    mf = maintenance.add_parser("finish-upgrade"); mf.add_argument("--previous-version")
+    mp = maintenance.add_parser("package-upgrade", help=argparse.SUPPRESS); mp.add_argument("--previous-version")
     return p
 
 
@@ -558,6 +795,11 @@ def _dispatch(service: AdministrationService, args: argparse.Namespace) -> Any:
     if args.group == "setup":
         if args.action == "status": return service.status()
         if args.action == "validate": return service.doctor()
+        if args.action == "init": return _setup_init(service, args)
+        if args.action == "bootstrap-admin":
+            storage = service.initialize_storage()
+            identity = service.create_initial_identity(args.admin_id, args.admin_name, source=args.source) if args.admin_id else None
+            return {"storage": storage, "identity": identity}
         if args.action == "configure": return service.setup_configure()
         if args.action == "activate": return service.setup_activate()
         confirm("¿Desactivar la operación normal?"); return service.setup_deactivate()
@@ -565,6 +807,27 @@ def _dispatch(service: AdministrationService, args: argparse.Namespace) -> Any:
         if args.action in {"status", "readiness"}: return service.status()
         if args.action == "pause": return service.service_pause(args.kind, args.reason)
         return service.service_resume()
+    if args.group in {"backup", "maintenance"}:
+        from .maintenance import MaintenanceService
+        maintenance = MaintenanceService(service, backup_root=args.backup_root)
+        if args.group == "backup":
+            if args.action == "create":
+                return maintenance.create_backup(offline_confirmed=args.offline, backup_id=args.id)
+            if args.action == "list": return maintenance.list_backups()
+            if args.action == "inspect": return maintenance.inspect(args.backup)
+            if args.action == "verify": return maintenance.verify(args.backup)
+            confirm("¿Restaurar este backup y sustituir el estado local?")
+            return maintenance.restore(args.backup, offline_confirmed=args.offline, confirmed=True)
+        if args.action == "status": return maintenance.maintenance_status()
+        if args.action == "check":
+            return {"doctor": service.doctor(), "maintenance": maintenance.maintenance_status()}
+        if args.action == "reconcile":
+            return maintenance.reconcile_restore(rollback=args.rollback, offline_confirmed=args.offline)
+        if args.action == "prepare-upgrade":
+            return maintenance.prepare_upgrade(offline_confirmed=args.offline)
+        if args.action == "package-upgrade":
+            return maintenance.package_upgrade_backup(args.previous_version)
+        return maintenance.finish_upgrade(args.previous_version)
     if args.action == "list": return service.agents(args.project)
     if args.action in {"show", "status"}: return service.agent(args.id)
     confirm("¿Suspender el agente?"); return service.disable_agent(args.id)

@@ -68,6 +68,15 @@ nunca se entregan a Codex.
 
 Habilitación, inferencia y publicación por proyecto son límites adicionales: no
 sustituyen aprobaciones. Un cambio crítico degrada `READY` a `CONFIGURED`.
+
+M05.3 añade una identidad inicial única para atribución y auditoría. Debconf es solo
+entrada de instalación no secreta; SQLite sigue siendo la autoridad. `setup init`
+compone operaciones administrativas atómicas y no activa por defecto.
+
+M05.4 separa backup, restore, upgrade y reconciliación en `MaintenanceService`. La
+restauración de estado local no restaura GitHub ni Codex: instala siempre una barrera
+operativa y conserva UNKNOWN. Los upgrades Debian capturan SQLite y filesystem antes
+de migrar, con la unidad detenida por el ciclo estándar de debhelper.
 ## Supervisor M04.5
 
 El runtime separa lectura remota, inferencia, escritura local, escritura remota y

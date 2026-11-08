@@ -22,6 +22,7 @@ class DebianPackageTests(unittest.TestCase):
             "python3-all", "python3-httpx (>= 0.27)",
             "python3-pydantic (>= 2.7)", "git", "ca-certificates", "adduser",
             "systemd-sysv",
+            "debconf (>= 0.5) | debconf-2.0",
         ):
             self.assertIn(dependency, control)
         self.assertIn("Architecture: all", control)
@@ -81,7 +82,7 @@ class DebianPackageTests(unittest.TestCase):
         migrations = resources.files("vibecoder").joinpath("migrations")
         names = sorted(item.name for item in migrations.iterdir() if item.name.endswith(".sql"))
         self.assertEqual(names[0], "0001_initial.sql")
-        self.assertEqual(names[-1], "0013_administration.sql")
+        self.assertEqual(names[-1], "0015_maintenance.sql")
         links = (DEBIAN / "links").read_text(encoding="utf-8")
         for command in re.findall(r"^(vibecoder-[\w-]+)\s*=", project, re.MULTILINE):
             if command not in {"vibecoder-supervisor", "vibecoder-admin"}:
@@ -90,6 +91,10 @@ class DebianPackageTests(unittest.TestCase):
         self.assertTrue((DEBIAN / "vibecoder-admin.1").is_file())
         self.assertIn("var/lib/vibecoder/secrets", (DEBIAN / "dirs").read_text())
         self.assertIn("0700 /var/lib/vibecoder/secrets", (DEBIAN / "postinst").read_text())
+        self.assertIn("0700 /var/lib/vibecoder/backups", (DEBIAN / "postinst").read_text())
+        self.assertIn("maintenance package-upgrade", (DEBIAN / "postinst").read_text())
+        self.assertTrue((DEBIAN / "config").stat().st_mode & 0o111)
+        self.assertTrue((DEBIAN / "templates").is_file())
 
     def test_binary_install_manifest_excludes_development_state(self):
         install = (DEBIAN / "install").read_text(encoding="utf-8")

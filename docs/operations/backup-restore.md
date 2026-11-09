@@ -1,5 +1,9 @@
 # Backup y restauración
 
+M05.5/M05.5.1 verificaron el procedimiento con systemd detenido en Debian trixie,
+Debian sid y, de forma experimental, Ubuntu 24.04, incluidos propietarios, barrera
+y rollback de una sustitución interrumpida.
+
 ## Preparación y creación
 
 Detenga el servicio y establezca una pausa persistente antes del backup:

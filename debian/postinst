@@ -53,7 +53,9 @@ if [ -e /var/lib/vibecoder/vibecoder.db ]; then
 fi
 
 db_get vibecoder/show-first-run-hint || RET=false
-if [ "${RET:-false}" = true ]; then
+operational_state=$(vibecoder-admin --config /etc/vibecoder/supervisor.json \
+    --json status | python3 -c 'import json,sys; print(json.load(sys.stdin)["operational_state"])')
+if [ "${RET:-false}" = true ] && [ "$operational_state" = NOT_CONFIGURED ]; then
     echo "vibecoder remains NOT_CONFIGURED. Continue with: sudo vibecoder-admin setup init"
 fi
 db_stop

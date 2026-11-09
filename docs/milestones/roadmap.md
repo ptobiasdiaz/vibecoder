@@ -149,6 +149,15 @@ Backups versionados y verificados, restauración con staging/journal, barrera de
 recuperación, rechazo de esquema futuro y backup pre-migración APT. Véase
 [M05.4](M05.4.md).
 
+### M05.5 — Validación integral de producto
+
+**Estado (2026-11-09): COMPLETADO; VALIDACIÓN REAL EN DEBIAN TRIXIE Y SID.** Instalación,
+systemd, administración, reinicios, backup, restore y recuperación superados en
+Debian 13.7 trixie y Debian sid; Ubuntu 24.04 queda experimental. El upgrade
+0.3→0.4 pasó en trixie y sid. La limitación del runtime histórico 0.3 se cubre con
+política de restore compatible, no downgrade automático. Véanse [M05.5](M05.5.md),
+[M05.5.1](M05.5.1.md) y [resultados finales](M05-final-results.md).
+
 ## M06 — Operación multicuenta
 
 Asignación de cuentas, métricas de uso, agotamiento, espera y recuperación, Telegram y endpoint Prometheus.

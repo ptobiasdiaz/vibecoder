@@ -8,7 +8,7 @@ from typing import Any, Callable, Mapping, Sequence
 from urllib.parse import quote
 
 import httpx
-from pydantic import BaseModel, ConfigDict, Field, ValidationError as PydanticValidationError
+from .pydantic_compat import IgnoreExtraBaseModel as BaseModel, Field, ValidationError as PydanticValidationError
 
 
 class GitHubError(RuntimeError):
@@ -65,7 +65,7 @@ class GitHubConfig:
 
 
 class _RemoteModel(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    pass
 
 
 class GitHubIdentity(_RemoteModel):

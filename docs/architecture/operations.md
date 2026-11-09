@@ -1,5 +1,10 @@
 # Operación, cuentas, cuotas y Telegram
 
+M05.5/M05.5.1 confirman que el mismo supervisor y la misma capa administrativa
+funcionan con Pydantic 2 (Debian trixie/sid) y Pydantic 1 (Ubuntu 24.04
+experimental), sin una segunda fuente de verdad ni instalación mediante pip. La
+capa de compatibilidad se conserva por su bajo coste y cobertura de regresión.
+
 ## Multicuenta
 
 Las cuentas Codex son entidades independientes de proyectos y agentes. Un proyecto se asigna a una cuenta configurada; los límites se comparten entre proyectos de la misma cuenta. No suponer que una sesión puede trasladarse entre cuentas. Mantener credenciales aisladas.

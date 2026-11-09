@@ -1,4 +1,6 @@
 docs/installation/debian.md
+docs/installation/ubuntu.md
+docs/installation/compatibility.md
 docs/installation/first-run.md
 docs/administration/cli.md
 docs/administration/security.md
@@ -6,6 +8,11 @@ docs/milestones/M05.1.md
 docs/milestones/M05.2.md
 docs/milestones/M05.3.md
 docs/milestones/M05.4.md
+docs/milestones/M05.5.md
+docs/milestones/M05.5.1.md
+docs/milestones/M05-live-results.md
+docs/milestones/M05-final-results.md
 docs/operations/backup-restore.md
 docs/operations/upgrade.md
 docs/operations/recovery.md
+docs/operations/systemd.md

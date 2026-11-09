@@ -52,7 +52,7 @@ activación operativa segura. Véanse
 
 ```bash
 dpkg-buildpackage -us -uc -b
-sudo apt install ../vibecoder_0.3.0_all.deb
+sudo apt install ../vibecoder_0.4.0_all.deb
 vibecoder-supervisor --config /etc/vibecoder/supervisor.json status
 sudo vibecoder-admin doctor
 sudo vibecoder-admin service pause --kind all --reason maintenance
@@ -65,7 +65,10 @@ La instalación arranca en `NOT_CONFIGURED` y no realiza operaciones externas. C
 [primera configuración](docs/installation/first-run.md) puede completarse con
 `sudo vibecoder-admin setup init`; debconf nunca solicita secretos.
 Consulte también [backup y restauración](docs/operations/backup-restore.md) y
-[actualizaciones](docs/operations/upgrade.md).
+[actualizaciones](docs/operations/upgrade.md). Debian 13 trixie es la plataforma
+soportada; Debian sid se valida de forma continua y Ubuntu 24.04 es experimental.
+Consulte la [matriz de compatibilidad](docs/installation/compatibility.md) y los
+[resultados finales de M05](docs/milestones/M05-final-results.md).
 
 ## Supervisor continuo
 

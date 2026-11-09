@@ -19,8 +19,8 @@ class DebianPackageTests(unittest.TestCase):
         control = (DEBIAN / "control").read_text(encoding="utf-8")
         for dependency in (
             "debhelper-compat (= 13)", "dh-python", "pybuild-plugin-pyproject",
-            "python3-all", "python3-httpx (>= 0.27)",
-            "python3-pydantic (>= 2.7)", "git", "ca-certificates", "adduser",
+            "python3-all", "python3-httpx (>= 0.26)",
+            "python3-pydantic (>= 1.10.14)", "git", "ca-certificates", "adduser",
             "systemd-sysv",
             "debconf (>= 0.5) | debconf-2.0",
         ):
@@ -93,6 +93,8 @@ class DebianPackageTests(unittest.TestCase):
         self.assertIn("0700 /var/lib/vibecoder/secrets", (DEBIAN / "postinst").read_text())
         self.assertIn("0700 /var/lib/vibecoder/backups", (DEBIAN / "postinst").read_text())
         self.assertIn("maintenance package-upgrade", (DEBIAN / "postinst").read_text())
+        self.assertIn('operational_state=$(vibecoder-admin', (DEBIAN / "postinst").read_text())
+        self.assertIn('[ "$operational_state" = NOT_CONFIGURED ]', (DEBIAN / "postinst").read_text())
         self.assertTrue((DEBIAN / "config").stat().st_mode & 0o111)
         self.assertTrue((DEBIAN / "templates").is_file())
 

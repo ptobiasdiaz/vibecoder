@@ -2,6 +2,10 @@ vibecoder (0.4.0) unstable; urgency=medium
 
   * Add consistent local backups, staged restore and recovery barriers.
   * Add conservative pre-migration package upgrade backup and schema checks.
+  * Support Pydantic 1.10 and HTTPX 0.26 as shipped by Ubuntu 24.04.
+  * Preserve service ownership when restoring staged data.
+  * Validate Debian sid and publish the Debian-first support policy.
+  * Document historical downgrade recovery and experimental Ubuntu status.
 
  -- Tobias Diaz <tobias.diaz@uclm.es>  Sun, 08 Nov 2026 12:00:00 +0100
 

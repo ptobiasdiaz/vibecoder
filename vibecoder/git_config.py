@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal, Mapping, Sequence
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError as PydanticValidationError
+from .pydantic_compat import BaseModel, Field, ValidationError as PydanticValidationError
 
 from .domain import (
     GitConfiguration,
@@ -40,7 +40,6 @@ def _now() -> str:
 
 
 class GitConfigPayload(BaseModel):
-    model_config = ConfigDict(extra="forbid")
 
     schema_version: Literal[1] = 1
     repository_id: str = Field(min_length=1)

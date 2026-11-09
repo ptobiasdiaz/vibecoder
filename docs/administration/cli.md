@@ -1,5 +1,8 @@
 # Administración por CLI
 
+La CLI fue validada bajo systemd real en Debian 13 trixie y Ubuntu 24.04. Las
+mutaciones siguen reservadas a UID 0; el usuario de servicio no es administrador.
+
 `vibecoder-admin` administra una instalación sin editar JSON ni SQLite. Las consultas
 son de solo lectura; las mutaciones requieren root. `--json` produce JSON sin secretos.
 Las operaciones destructivas solicitan confirmación; `--yes` permite automatizarlas

@@ -1,12 +1,11 @@
-# Instalación en Debian y Ubuntu
+# Instalación en Debian
 
 ## Compatibilidad
 
-Vibecoder requiere Python 3.11 o posterior, `httpx >= 0.27` y `pydantic >= 2.7`. El
-paquete usa dependencias de la distribución y no ejecuta `pip` en el host. La
-construcción de M05.1 se verifica en Debian forky/sid; Debian y Ubuntu anteriores solo
-son compatibles si proporcionan esas versiones. No se declara validación sobre Ubuntu
-hasta probar el artefacto en una versión concreta.
+Vibecoder requiere Python 3.11 o posterior, `httpx >= 0.26` y
+`pydantic >= 1.10.14`. El paquete usa dependencias de la distribución y no ejecuta
+`pip` en el host. Debian 13 trixie es la plataforma soportada; sid se usa para
+validación continua. Consulte la [matriz](compatibility.md).
 
 Codex CLI/App Server no se instala automáticamente. Su ruta se declarará por cuenta.
 Git y certificados CA son dependencias obligatorias.
@@ -111,3 +110,9 @@ sudo vibecoder-admin maintenance prepare-upgrade --offline
 
 No instale un runtime anterior sobre un esquema más reciente. Consulte
 [Actualizaciones](../operations/upgrade.md).
+
+## Compatibilidad validada
+
+M05.5 validó Debian 13.7 trixie con systemd 257 y Python 3.13.5. M05.5.1 validó
+además un snapshot real de sid con systemd 262, Python 3.14.10 y kernel 7.3.3.
+Ubuntu se documenta por separado como plataforma [experimental](ubuntu.md).

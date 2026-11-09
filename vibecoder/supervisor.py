@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError as PydanticValidationError, field_validator
+from .pydantic_compat import BaseModel, Field, ValidationError as PydanticValidationError, field_validator
 
 from .domain import SupervisorJob, SupervisorJobState, WorkCategory
 from .errors import ConflictError, CoreError, ValidationError
@@ -44,7 +44,6 @@ def _stamp(value: datetime | None = None) -> str:
 
 
 class PollIntervals(BaseModel):
-    model_config = ConfigDict(extra="forbid")
     issues: float = Field(60, ge=5, le=86400)
     pull_requests: float = Field(60, ge=5, le=86400)
     approvals: float = Field(90, ge=5, le=86400)
@@ -54,7 +53,6 @@ class PollIntervals(BaseModel):
 
 
 class RuntimeLimits(BaseModel):
-    model_config = ConfigDict(extra="forbid")
     global_active: int = Field(1, ge=1, le=32)
     per_project: int = Field(1, ge=1, le=16)
     per_agent: int = Field(1, ge=1, le=8)
@@ -70,7 +68,6 @@ class RuntimeLimits(BaseModel):
 
 
 class ProjectRuntime(BaseModel):
-    model_config = ConfigDict(extra="forbid")
     workspace: Path
     allowed_paths: tuple[str, ...] = ("src", "tests", "doc", "README.md")
     enabled: bool = True
@@ -88,7 +85,6 @@ class ProjectRuntime(BaseModel):
 
 
 class SupervisorConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
     database: Path
     accounts: Path | None = None
     task_workspace_root: Path
@@ -106,13 +102,20 @@ class SupervisorConfig(BaseModel):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     operational_state: Literal["NOT_CONFIGURED", "CONFIGURED", "READY"] = "READY"
 
-    @field_validator("database", "task_workspace_root", "accounts", "secrets_dir")
+    @field_validator("database", "task_workspace_root", "secrets_dir")
     @classmethod
-    def absolute_path(cls, value: Path | None, info: Any) -> Path | None:
+    def absolute_path(cls, value: Path | None) -> Path | None:
+        if value is None:
+            return None
+        return value.expanduser().resolve()
+
+    @field_validator("accounts")
+    @classmethod
+    def accounts_path(cls, value: Path | None) -> Path | None:
         if value is None:
             return None
         path = value.expanduser().resolve()
-        if info.field_name == "accounts" and not path.is_file():
+        if not path.is_file():
             raise ValueError(f"accounts.json inexistente: {path}")
         return path
 

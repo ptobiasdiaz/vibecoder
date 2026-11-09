@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 from uuid import uuid4
 
-from pydantic import ValidationError as PydanticValidationError
+from .pydantic_compat import ValidationError as PydanticValidationError
 
 from .agents import AgentManagementService
 from .domain import AccountStatus, AuthType
@@ -766,7 +766,8 @@ def _dispatch(service: AdministrationService, args: argparse.Namespace) -> Any:
     if args.group == "config":
         if args.action in {"show", "validate"}: return service.config_show()
         if args.action == "reset":
-            defaults = SupervisorConfig.model_fields[args.key].default if args.key in SupervisorConfig.model_fields else None
+            fields = getattr(SupervisorConfig, "model_fields", None) or SupervisorConfig.__fields__
+            defaults = fields[args.key].default if args.key in fields else None
             if args.key not in {"github_credential_id"}: raise ValidationError("clave no reiniciable")
             return service._write_config(lambda raw: raw.__setitem__(args.key, defaults)).model_dump(mode="json")
         return service.config_set(args.key, args.value)

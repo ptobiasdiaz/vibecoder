@@ -286,13 +286,20 @@ class MaintenanceService:
 
     def _replace_file(self, source: Path, target: Path) -> None:
         target.parent.mkdir(parents=True, exist_ok=True)
+        ownership = target.stat() if target.exists() else target.parent.stat()
         temp = target.with_name(f".{target.name}.{uuid4().hex}.restore")
-        shutil.copy2(source, temp); os.replace(temp, target)
+        shutil.copy2(source, temp)
+        os.chown(temp, ownership.st_uid, ownership.st_gid)
+        os.replace(temp, target)
 
     def _replace_directory(self, source: Path, target: Path) -> None:
         target.parent.mkdir(parents=True, exist_ok=True)
+        ownership = target.stat() if target.exists() else target.parent.stat()
         temp = target.parent / f".{target.name}.{uuid4().hex}.restore"
         shutil.copytree(source, temp, copy_function=shutil.copy2)
+        os.chown(temp, ownership.st_uid, ownership.st_gid)
+        for path in temp.rglob("*"):
+            os.chown(path, ownership.st_uid, ownership.st_gid, follow_symlinks=False)
         old = target.parent / f".{target.name}.{uuid4().hex}.old"
         if target.exists(): os.replace(target, old)
         os.replace(temp, target)

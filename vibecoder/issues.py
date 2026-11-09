@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from .pydantic_compat import StripBaseModel as BaseModel, Field, field_validator
 
 from .agents import AgentManagementService
 from .codex_executor import AccountRuntimeConfig, CodexAppServerExecutor
@@ -75,13 +75,12 @@ def _canonical(data: Mapping[str, Any]) -> tuple[str, str]:
 
 
 class PlannedTaskPayload(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     id: str = Field(pattern=r"^[a-z][a-z0-9-]{0,63}$")
     description: str = Field(min_length=1)
     expected_result: str = Field(min_length=1)
     assigned_agent: str = Field(pattern=r"^[a-z][a-z0-9-]{0,31}$")
     dependencies: list[str] = Field(default_factory=list)
-    acceptance_criteria: list[str] = Field(min_length=1)
+    acceptance_criteria: list[str] = Field(min_items=1)
     restrictions: list[str] = Field(default_factory=list)
 
     @field_validator("dependencies", "acceptance_criteria", "restrictions")
@@ -94,15 +93,14 @@ class PlannedTaskPayload(BaseModel):
 
 
 class PlanPayload(BaseModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     schema_version: int = Field(default=1, ge=1, le=1)
     objective: str = Field(min_length=1)
-    scope: list[str] = Field(min_length=1)
+    scope: list[str] = Field(min_items=1)
     exclusions: list[str] = Field(default_factory=list)
-    acceptance_criteria: list[str] = Field(min_length=1)
+    acceptance_criteria: list[str] = Field(min_items=1)
     risks: list[str] = Field(default_factory=list)
     assumptions: list[str] = Field(default_factory=list)
-    tasks: list[PlannedTaskPayload] = Field(min_length=1)
+    tasks: list[PlannedTaskPayload] = Field(min_items=1)
 
     @field_validator("scope", "exclusions", "acceptance_criteria", "risks", "assumptions")
     @classmethod

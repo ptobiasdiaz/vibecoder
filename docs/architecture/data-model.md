@@ -1,4 +1,7 @@
-# Modelo de datos conceptual
+# Modelo de datos conceptual (histórico, vibecoder 0.4.0)
+
+> El esquema vigente de M06 comienza de nuevo en versión 1. Véase
+> [vibecoder-0.0.1.md](vibecoder-0.0.1.md).
 
 Entidades iniciales:
 

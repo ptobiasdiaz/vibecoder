@@ -1,95 +1,114 @@
-"""Puertos que separan dominio, persistencia y futura ejecución Codex."""
-
+"""Provider-neutral plugin ports; no GitHub secret or database is exposed."""
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Mapping, Protocol, Sequence, runtime_checkable
 
+from .domain import AuthenticationMethod, ExecutionOutcome, PluginDescriptor, ProviderSession, Worker
+
+
+class CapabilityError(RuntimeError):
+    def __init__(self, capability: str):
+        self.capability = capability
+        super().__init__(f"capacidad no soportada: {capability}")
+
+
+@dataclass(frozen=True)
+class InstallationPlan:
+    plugin_id: str
+    version: str
+    platform: str
+    source: str
+    expected_digest: str
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class AuthenticationChallenge:
+    method: AuthenticationMethod
+    opaque_reference: str
+    verification_uri: str | None = None
+    user_code: str | None = None
+    expires_at: str | None = None
+
+
+@dataclass(frozen=True)
+class SessionRequest:
+    project_id: str
+    agent_id: str
+    worker_id: str
+    purpose: str
+    context_hash: str
+    workspace: Path | None = None
+    correlation_id: str = ""
+
+
+@dataclass(frozen=True)
+class ExecutionRequest:
+    execution_id: str
+    worker_id: str
+    session_id: str
+    idempotency_key: str
+    agent_context: Mapping[str, Any]
+    instructions: str
+    workspace: Path | None = None
+    limits: Mapping[str, Any] = field(default_factory=dict)
+    expected_output_schema: Mapping[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class ExecutionResult:
+    outcome: ExecutionOutcome
+    provider_execution_reference: str | None = None
+    provider_session_reference: str | None = None
+    structured_result: Mapping[str, Any] = field(default_factory=dict)
+    error_category: str | None = None
+    error_message: str | None = None
+    reconciliation: Mapping[str, Any] = field(default_factory=dict)
+
 
 @runtime_checkable
-class GitHubClient(Protocol):
-    """API remota; los tokens y el transporte quedan fuera del dominio."""
+class PluginInstallationManager(Protocol):
+    def installation_status(self) -> Mapping[str, Any]: ...
+    def plan_installation(self, *, platform: str) -> InstallationPlan: ...
+    def install(self, plan: InstallationPlan) -> Mapping[str, Any]: ...
+    def verify_installation(self) -> PluginDescriptor: ...
 
-    def authenticate(self) -> Mapping[str, Any]: ...
-
-    def get_repository(self, owner: str, name: str) -> Mapping[str, Any]: ...
-
-    def is_repository_empty(self, owner: str, name: str) -> bool: ...
-
-    def get_branch(self, owner: str, name: str, branch: str) -> Mapping[str, Any]: ...
-
-    def list_pull_requests(
-        self, owner: str, name: str, *, state: str = "all",
-        head: str | None = None, base: str | None = None,
-    ) -> Sequence[Mapping[str, Any]]: ...
-
-    def get_pull_request(self, owner: str, name: str, number: int) -> Mapping[str, Any]: ...
-
-    def create_pull_request(
-        self, owner: str, name: str, title: str, body: str, head: str, base: str,
-    ) -> Mapping[str, Any]: ...
-
-    def list_pull_request_reviews(self, owner: str, name: str, number: int) -> Sequence[Mapping[str, Any]]: ...
-
-    def list_pull_request_review_comments(self, owner: str, name: str, number: int) -> Sequence[Mapping[str, Any]]: ...
-
-    def list_pull_request_commits(self, owner: str, name: str, number: int) -> Sequence[Mapping[str, Any]]: ...
-
-    def list_issues(self, owner: str, name: str, *, state: str = "open") -> Sequence[Mapping[str, Any]]: ...
-
-    def get_issue(self, owner: str, name: str, number: int) -> Mapping[str, Any]: ...
-
-    def create_issue(self, owner: str, name: str, title: str, body: str) -> Mapping[str, Any]: ...
-
-    def list_comments(self, owner: str, name: str, issue_number: int) -> Sequence[Mapping[str, Any]]: ...
-
-    def create_comment(self, owner: str, name: str, issue_number: int, body: str) -> Mapping[str, Any]: ...
-
-    def list_issue_events(self, owner: str, name: str, issue_number: int) -> Sequence[Mapping[str, Any]]: ...
-
-    def list_labels(self, owner: str, name: str) -> Sequence[Mapping[str, Any]]: ...
-
-    def get_label(self, owner: str, name: str, label: str) -> Mapping[str, Any] | None: ...
-
-    def create_label(self, owner: str, name: str, label: str, color: str, description: str | None) -> Mapping[str, Any]: ...
-
-    def set_issue_labels(self, owner: str, name: str, issue_number: int, labels: Sequence[str]) -> Sequence[Mapping[str, Any]]: ...
 
 @runtime_checkable
-class CodexExecutor(Protocol):
-    """Contrato de ejecución; no conoce persistencia ni autenticación."""
+class WorkerAuthenticator(Protocol):
+    def begin_authentication(self, worker: Worker, method: AuthenticationMethod) -> AuthenticationChallenge: ...
+    def continue_authentication(self, challenge: AuthenticationChallenge) -> Mapping[str, Any]: ...
+    def verify_authentication(self, worker: Worker) -> bool: ...
 
-    async def start(self) -> None: ...
 
-    async def close(self) -> None: ...
+@runtime_checkable
+class WorkerProbe(Protocol):
+    async def probe_worker(self, worker: Worker) -> Mapping[str, Any]: ...
 
-    async def ensure_thread(self, thread_id: str | None) -> tuple[str, bool]: ...
 
-    async def start_turn(self, thread_id: str, prompt: str) -> str: ...
+@runtime_checkable
+class WorkerRuntime(Protocol):
+    async def create_session(self, request: SessionRequest) -> ProviderSession: ...
+    async def continue_session(self, session: ProviderSession) -> ProviderSession: ...
+    async def execute(self, request: ExecutionRequest) -> ExecutionResult: ...
 
-    async def wait_turn(self, thread_id: str, turn_id: str) -> object: ...
 
-    async def interrupt(self, thread_id: str, turn_id: str) -> None: ...
+@runtime_checkable
+class ExecutionObserver(Protocol):
+    async def observe_execution(self, provider_reference: str) -> ExecutionResult: ...
 
-    async def reconcile_turn(self, thread_id: str, turn_id: str) -> object | None: ...
+
+@runtime_checkable
+class ExecutionCanceller(Protocol):
+    async def cancel_execution(self, provider_reference: str) -> ExecutionResult: ...
 
 
 @runtime_checkable
 class Repository(Protocol):
-    """Unidad de persistencia consumida por el servicio de aplicación."""
-
     def close(self) -> None: ...
-
     def transaction(self): ...
-
-    def insert(self, table: str, values: dict[str, object]) -> None: ...
-
-    def update(self, table: str, entity_id: str, values: dict[str, object]) -> None: ...
-
-    def get(self, table: str, entity_id: str) -> dict[str, object]: ...
-
-    def find_one(self, table: str, **criteria: object) -> dict[str, object] | None: ...
-
-    def list(self, table: str, **criteria: object) -> list[dict[str, object]]: ...
-
-    def next_attempt_number(self, task_id: str) -> int: ...
-
+    def execute(self, sql: str, parameters: Sequence[object] = ()) -> None: ...
+    def query_one(self, sql: str, parameters: Sequence[object] = ()) -> Mapping[str, Any] | None: ...
+    def query_all(self, sql: str, parameters: Sequence[object] = ()) -> list[Mapping[str, Any]]: ...

@@ -1,361 +1,261 @@
-"""Entidades y máquinas de estado del núcleo, sin dependencias de persistencia."""
+"""Provider-neutral domain model for vibecoder 0.0.1.
 
+Provider identifiers are opaque strings interpreted only by their plugin.
+"""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Any, Mapping
 
-
-class AuthType(StrEnum):
-    CHATGPT = "CHATGPT"
-    API_KEY = "API_KEY"
-    ACCESS_TOKEN = "ACCESS_TOKEN"
+from .errors import ValidationError
 
 
-class AccountStatus(StrEnum):
-    AVAILABLE = "AVAILABLE"
-    UNAVAILABLE = "UNAVAILABLE"
-    AUTH_REQUIRED = "AUTH_REQUIRED"
-    QUOTA_EXHAUSTED = "QUOTA_EXHAUSTED"
-    DISABLED = "DISABLED"
+def _required(value: str, name: str) -> None:
+    if not value.strip():
+        raise ValidationError(f"{name} no puede estar vacío")
+
+
+def _mapping(value: Mapping[str, Any]) -> Mapping[str, Any]:
+    return MappingProxyType(dict(value))
 
 
 class ProjectStatus(StrEnum):
-    UNINITIALIZED = "UNINITIALIZED"
-    BOOTSTRAPPING = "BOOTSTRAPPING"
-    DESIGNING = "DESIGNING"
-    READY = "READY"
-    ACTIVE = "ACTIVE"
+    ENABLED = "ENABLED"
     DISABLED = "DISABLED"
-
-
-class AgentType(StrEnum):
-    PRINCIPAL = "PRINCIPAL"
-    SPECIALIZED = "SPECIALIZED"
+    BLOCKED = "BLOCKED"
 
 
 class AgentStatus(StrEnum):
-    ACTIVE = "ACTIVE"
-    INACTIVE = "INACTIVE"
-    UNAVAILABLE = "UNAVAILABLE"
-
-
-class SpecialistStatus(StrEnum):
-    DRAFT = "DRAFT"
     PROPOSED = "PROPOSED"
     ACTIVE = "ACTIVE"
     SUSPENDED = "SUSPENDED"
     RETIRED = "RETIRED"
 
 
-class AgentRevisionStatus(StrEnum):
-    PROPOSED = "PROPOSED"
-    VALIDATED = "VALIDATED"
-    ACTIVE = "ACTIVE"
-    SUPERSEDED = "SUPERSEDED"
-    REJECTED = "REJECTED"
+class WorkerStatus(StrEnum):
+    INSTALLING = "INSTALLING"
+    AUTHENTICATION_REQUIRED = "AUTHENTICATION_REQUIRED"
+    VERIFYING = "VERIFYING"
+    READY = "READY"
+    UNAVAILABLE = "UNAVAILABLE"
+    DISABLED = "DISABLED"
+    ERROR = "ERROR"
 
 
-class IssueWorkflowStatus(StrEnum):
+class PluginCapability(StrEnum):
+    PERSISTENT_SESSIONS = "PERSISTENT_SESSIONS"
+    SESSION_CONTINUATION = "SESSION_CONTINUATION"
+    CANCELLATION = "CANCELLATION"
+    RECONCILIATION = "RECONCILIATION"
+    STRUCTURED_OUTPUT = "STRUCTURED_OUTPUT"
+    WORKSPACE_EXECUTION = "WORKSPACE_EXECUTION"
+
+
+class AuthenticationMethod(StrEnum):
+    DEVICE_CODE = "DEVICE_CODE"
+    API_KEY = "API_KEY"
+    IMPORT = "IMPORT"
+    NONE = "NONE"
+
+
+class ProviderSessionStatus(StrEnum):
+    CREATING = "CREATING"
     ACTIVE = "ACTIVE"
-    PLANNING = "PLANNING"
-    WAITING_APPROVAL = "WAITING_APPROVAL"
-    APPROVED = "APPROVED"
-    MATERIALIZED = "MATERIALIZED"
+    UNAVAILABLE = "UNAVAILABLE"
     CLOSED = "CLOSED"
-    BLOCKED = "BLOCKED"
+    UNKNOWN = "UNKNOWN"
 
 
-class IssueCommentStatus(StrEnum):
-    RECEIVED = "RECEIVED"
-    IGNORED = "IGNORED"
-    REJECTED = "REJECTED"
-    QUEUED = "QUEUED"
+class ExecutionState(StrEnum):
+    PENDING = "PENDING"
     RUNNING = "RUNNING"
-    RESPONSE_PENDING = "RESPONSE_PENDING"
-    COMPLETED = "COMPLETED"
-    BLOCKED = "BLOCKED"
+    RECONCILING = "RECONCILING"
+    FINISHED = "FINISHED"
+
+
+class ExecutionOutcome(StrEnum):
+    SUCCEEDED = "SUCCEEDED"
+    FAILED = "FAILED"
+    UNKNOWN = "UNKNOWN"
+    CANCELLED = "CANCELLED"
+    WAITING_AUTH = "WAITING_AUTH"
+    WAITING_QUOTA = "WAITING_QUOTA"
+    UNSUPPORTED = "UNSUPPORTED"
+
+
+class RuntimeApprovalKind(StrEnum):
+    COMMAND = "COMMAND"
+    FILE_CHANGE = "FILE_CHANGE"
+    PERMISSIONS = "PERMISSIONS"
+
+
+class RuntimeApprovalStatus(StrEnum):
+    PENDING = "PENDING"
+    DECISION_RECORDED = "DECISION_RECORDED"
+    DELIVERING = "DELIVERING"
+    APPROVED = "APPROVED"
+    DENIED = "DENIED"
+    EXPIRED = "EXPIRED"
+    UNKNOWN = "UNKNOWN"
+
+
+class RuntimeApprovalDecision(StrEnum):
+    APPROVE = "APPROVE"
+    DENY = "DENY"
 
 
 class PlanRevisionStatus(StrEnum):
     DRAFT = "DRAFT"
     PROPOSED = "PROPOSED"
-    CONFIRMED = "CONFIRMED"
     APPROVED = "APPROVED"
     SUPERSEDED = "SUPERSEDED"
     BLOCKED = "BLOCKED"
 
 
-class TaskExecutionStatus(StrEnum):
-    READY = "READY"
-    WAITING_DEPENDENCIES = "WAITING_DEPENDENCIES"
-    PREPARING = "PREPARING"
-    WORKSPACE_READY = "WORKSPACE_READY"
+class ExternalOperationStatus(StrEnum):
+    INTENDED = "INTENDED"
     RUNNING = "RUNNING"
-    GENERATED = "GENERATED"
-    VALIDATING = "VALIDATING"
-    VALIDATED = "VALIDATED"
-    COMMITTED = "COMMITTED"
-    PUSHING = "PUSHING"
-    BRANCH_PUBLISHED = "BRANCH_PUBLISHED"
-    CREATING_PR = "CREATING_PR"
-    PR_OPEN = "PR_OPEN"
-    MERGED = "MERGED"
-    BLOCKED = "BLOCKED"
-    UNKNOWN = "UNKNOWN"
-    FAILED = "FAILED"
-
-
-class PullRequestSupervisionStatus(StrEnum):
-    MONITORING = "MONITORING"
-    REVIEW_PENDING = "REVIEW_PENDING"
-    CHANGES_REQUESTED = "CHANGES_REQUESTED"
-    CORRECTING = "CORRECTING"
-    WAITING_FOR_REVIEW = "WAITING_FOR_REVIEW"
-    APPROVED = "APPROVED"
-    MERGED = "MERGED"
-    CLOSED_UNMERGED = "CLOSED_UNMERGED"
-    BLOCKED = "BLOCKED"
-    UNKNOWN = "UNKNOWN"
-
-
-class CorrectionScope(StrEnum):
-    IN_SCOPE = "IN_SCOPE"
-    OUT_OF_SCOPE = "OUT_OF_SCOPE"
-    AMBIGUOUS = "AMBIGUOUS"
-
-
-class CorrectionStatus(StrEnum):
-    AUTHORIZED = "AUTHORIZED"
-    RUNNING = "RUNNING"
-    GENERATED = "GENERATED"
-    VALIDATED = "VALIDATED"
-    COMMITTED = "COMMITTED"
-    PUSHING = "PUSHING"
-    PUBLISHED = "PUBLISHED"
-    REPLIED = "REPLIED"
-    BLOCKED = "BLOCKED"
-    UNKNOWN = "UNKNOWN"
-
-
-class SupervisorJobState(StrEnum):
-    PENDING = "PENDING"
-    RUNNING = "RUNNING"
-    RETRY_WAIT = "RETRY_WAIT"
     SUCCEEDED = "SUCCEEDED"
-    BLOCKED = "BLOCKED"
+    FAILED = "FAILED"
     UNKNOWN = "UNKNOWN"
     CANCELLED = "CANCELLED"
 
 
-class WorkCategory(StrEnum):
-    REMOTE_READ = "REMOTE_READ"
-    CODEX = "CODEX"
-    LOCAL_WRITE = "LOCAL_WRITE"
-    REMOTE_WRITE = "REMOTE_WRITE"
-    RECOVERY = "RECOVERY"
+class GitHubConnectivity(StrEnum):
+    UNCONFIGURED = "UNCONFIGURED"
+    ONLINE = "ONLINE"
+    OFFLINE = "OFFLINE"
+    AUTH_FAILED = "AUTH_FAILED"
 
 
-class SessionPersistenceState(StrEnum):
-    NOT_CREATED = "NOT_CREATED"
-    THREAD_CREATED_UNCONFIRMED = "THREAD_CREATED_UNCONFIRMED"
-    THREAD_PERSISTED = "THREAD_PERSISTED"
-    RECOVERABLE = "RECOVERABLE"
-    UNAVAILABLE = "UNAVAILABLE"
-    LOST = "LOST"
+class ExecutionCapacity(StrEnum):
+    NO_WORKER = "NO_WORKER"
+    AVAILABLE = "AVAILABLE"
+    DEGRADED = "DEGRADED"
+
+
+class PublicReadiness(StrEnum):
+    STANDBY = "STANDBY"
+    READY = "READY"
 
 
 class TaskStatus(StrEnum):
     PENDING = "PENDING"
-    RUNNING = "RUNNING"
-    WAITING = "WAITING"
-    WAITING_QUOTA = "WAITING_QUOTA"
-    WAITING_AUTH = "WAITING_AUTH"
-    COMPLETED = "COMPLETED"
-    FAILED = "FAILED"
-    CANCELLED = "CANCELLED"
-
-
-class AttemptStatus(StrEnum):
-    RUNNING = "RUNNING"
-    SUCCEEDED = "SUCCEEDED"
-    FAILED = "FAILED"
-    UNKNOWN = "UNKNOWN"
-    CANCELLED = "CANCELLED"
-
-
-class BootstrapStatus(StrEnum):
-    ACTIVE = "ACTIVE"
-    APPROVAL_PENDING = "APPROVAL_PENDING"
-    APPROVED = "APPROVED"
-    BLOCKED = "BLOCKED"
-
-
-class BootstrapCommentStatus(StrEnum):
-    RECEIVED = "RECEIVED"
-    IGNORED = "IGNORED"
-    REJECTED = "REJECTED"
-    QUEUED = "QUEUED"
-    RUNNING = "RUNNING"
-    RESPONSE_PENDING = "RESPONSE_PENDING"
-    COMPLETED = "COMPLETED"
-    BLOCKED = "BLOCKED"
-
-
-class GenerationStatus(StrEnum):
-    PENDING = "PENDING"
-    PREPARING_WORKSPACE = "PREPARING_WORKSPACE"
-    GENERATING = "GENERATING"
-    VALIDATING = "VALIDATING"
-    READY_TO_PUBLISH = "READY_TO_PUBLISH"
-    BLOCKED = "BLOCKED"
-    FAILED = "FAILED"
-    ARCHIVED = "ARCHIVED"
-
-
-class GitConfigurationStatus(StrEnum):
-    PROPOSED = "PROPOSED"
-    CONFIRMED = "CONFIRMED"
-    APPROVED = "APPROVED"
-    APPLIED = "APPLIED"
-
-
-class GitInitializationStrategy(StrEnum):
-    EXISTING_BASE = "EXISTING_BASE"
-    TECHNICAL_BASE_COMMIT = "TECHNICAL_BASE_COMMIT"
-
-
-class TechnicalCommitPolicy(StrEnum):
-    NONE = "NONE"
-    CREATE_MINIMAL = "CREATE_MINIMAL"
-
-
-class GitPublicationPolicy(StrEnum):
-    PULL_REQUEST = "PULL_REQUEST"
-
-
-class GitIntegrationPolicy(StrEnum):
-    HUMAN_REVIEW_MERGE = "HUMAN_REVIEW_MERGE"
-
-
-class PublicationStatus(StrEnum):
+    WAITING_DEPENDENCIES = "WAITING_DEPENDENCIES"
     READY = "READY"
-    INITIALIZING_BASE = "INITIALIZING_BASE"
-    BASE_READY = "BASE_READY"
-    PUSHING_BRANCH = "PUSHING_BRANCH"
-    BRANCH_PUBLISHED = "BRANCH_PUBLISHED"
-    CREATING_PR = "CREATING_PR"
-    WAITING_FOR_MERGE = "WAITING_FOR_MERGE"
-    MERGED = "MERGED"
-    ACTIVATED = "ACTIVATED"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
     BLOCKED = "BLOCKED"
-    UNKNOWN = "UNKNOWN"
-
-
-SPECIALIST_TRANSITIONS: Mapping[SpecialistStatus, frozenset[SpecialistStatus]] = {
-    SpecialistStatus.DRAFT: frozenset({SpecialistStatus.PROPOSED, SpecialistStatus.RETIRED}),
-    SpecialistStatus.PROPOSED: frozenset({SpecialistStatus.ACTIVE, SpecialistStatus.RETIRED}),
-    SpecialistStatus.ACTIVE: frozenset({SpecialistStatus.SUSPENDED, SpecialistStatus.RETIRED}),
-    SpecialistStatus.SUSPENDED: frozenset({SpecialistStatus.ACTIVE, SpecialistStatus.RETIRED}),
-    SpecialistStatus.RETIRED: frozenset(),
-}
-
-
-TASK_TRANSITIONS: Mapping[TaskStatus, frozenset[TaskStatus]] = {
-    TaskStatus.PENDING: frozenset({TaskStatus.RUNNING, TaskStatus.CANCELLED}),
-    TaskStatus.RUNNING: frozenset(
-        {
-            TaskStatus.WAITING,
-            TaskStatus.WAITING_QUOTA,
-            TaskStatus.WAITING_AUTH,
-            TaskStatus.COMPLETED,
-            TaskStatus.FAILED,
-            TaskStatus.CANCELLED,
-        }
-    ),
-    TaskStatus.WAITING: frozenset(
-        {TaskStatus.RUNNING, TaskStatus.FAILED, TaskStatus.CANCELLED}
-    ),
-    TaskStatus.WAITING_QUOTA: frozenset(
-        {TaskStatus.RUNNING, TaskStatus.WAITING, TaskStatus.FAILED, TaskStatus.CANCELLED}
-    ),
-    TaskStatus.WAITING_AUTH: frozenset(
-        {TaskStatus.RUNNING, TaskStatus.WAITING, TaskStatus.FAILED, TaskStatus.CANCELLED}
-    ),
-    TaskStatus.COMPLETED: frozenset(),
-    TaskStatus.FAILED: frozenset({TaskStatus.PENDING}),
-    TaskStatus.CANCELLED: frozenset(),
-}
-
-
-PROJECT_TRANSITIONS: Mapping[ProjectStatus, frozenset[ProjectStatus]] = {
-    ProjectStatus.UNINITIALIZED: frozenset(
-        {ProjectStatus.BOOTSTRAPPING, ProjectStatus.DISABLED}
-    ),
-    ProjectStatus.BOOTSTRAPPING: frozenset(
-        {ProjectStatus.DESIGNING, ProjectStatus.DISABLED}
-    ),
-    ProjectStatus.DESIGNING: frozenset({ProjectStatus.READY, ProjectStatus.DISABLED}),
-    ProjectStatus.READY: frozenset({ProjectStatus.ACTIVE, ProjectStatus.DISABLED}),
-    ProjectStatus.ACTIVE: frozenset({ProjectStatus.DISABLED}),
-    ProjectStatus.DISABLED: frozenset(),
-}
-
-
-SESSION_TRANSITIONS: Mapping[
-    SessionPersistenceState, frozenset[SessionPersistenceState]
-] = {
-    SessionPersistenceState.NOT_CREATED: frozenset(
-        {
-            SessionPersistenceState.THREAD_CREATED_UNCONFIRMED,
-            SessionPersistenceState.UNAVAILABLE,
-        }
-    ),
-    SessionPersistenceState.THREAD_CREATED_UNCONFIRMED: frozenset(
-        {
-            SessionPersistenceState.THREAD_PERSISTED,
-            SessionPersistenceState.UNAVAILABLE,
-            SessionPersistenceState.LOST,
-        }
-    ),
-    SessionPersistenceState.THREAD_PERSISTED: frozenset(
-        {
-            SessionPersistenceState.RECOVERABLE,
-            SessionPersistenceState.UNAVAILABLE,
-            SessionPersistenceState.LOST,
-        }
-    ),
-    SessionPersistenceState.RECOVERABLE: frozenset(
-        {SessionPersistenceState.UNAVAILABLE, SessionPersistenceState.LOST}
-    ),
-    SessionPersistenceState.UNAVAILABLE: frozenset(
-        {SessionPersistenceState.RECOVERABLE, SessionPersistenceState.LOST}
-    ),
-    SessionPersistenceState.LOST: frozenset(),
-}
+    CANCELLED = "CANCELLED"
 
 
 @dataclass(frozen=True)
-class CodexAccount:
+class Installation:
     id: str
-    name: str
-    auth_type: AuthType
-    credential_ref: str
-    status: AccountStatus
     created_at: str
     updated_at: str
+
+
+@dataclass(frozen=True)
+class GitHubIdentity:
+    github_user_id: int
+    login: str
+    credential_reference: str
+    status: GitHubConnectivity
+    configured_at: str
+    checked_at: str | None = None
+    diagnostic: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.github_user_id <= 0:
+            raise ValidationError("github_user_id debe ser positivo")
+        _required(self.login, "login")
+        _required(self.credential_reference, "credential_reference")
+        object.__setattr__(self, "diagnostic", _mapping(self.diagnostic))
 
 
 @dataclass(frozen=True)
 class Project:
     id: str
     name: str
-    github_repository: str | None
-    codex_account_id: str
+    github_repository_id: int
+    canonical_name: str
+    base_branch: str
+    remote_sha: str
     status: ProjectStatus
     created_at: str
     updated_at: str
+
+    def __post_init__(self) -> None:
+        for value, name in ((self.id, "id"), (self.name, "name"), (self.base_branch, "base_branch"), (self.remote_sha, "remote_sha")):
+            _required(value, name)
+        if self.github_repository_id <= 0:
+            raise ValidationError("github_repository_id debe ser positivo")
+        if len(self.canonical_name.split("/")) != 2 or any(not p.strip() for p in self.canonical_name.split("/")):
+            raise ValidationError("canonical_name debe tener formato owner/repository")
+
+
+@dataclass(frozen=True)
+class ProjectAuthorization:
+    project_id: str
+    github_user_id: int
+    login: str
+    authorized_at: str
+    authorized_by: str | None = None
+
+    def __post_init__(self) -> None:
+        _required(self.project_id, "project_id")
+        _required(self.login, "login")
+        if self.github_user_id <= 0:
+            raise ValidationError("github_user_id debe ser positivo")
+
+
+@dataclass(frozen=True)
+class PluginDescriptor:
+    plugin_id: str
+    version: str
+    provider: str
+    supported_platforms: frozenset[str]
+    authentication_methods: frozenset[AuthenticationMethod]
+    capabilities: frozenset[PluginCapability]
+    metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        for value, name in ((self.plugin_id, "plugin_id"), (self.version, "version"), (self.provider, "provider")):
+            _required(value, name)
+        if not self.supported_platforms:
+            raise ValidationError("el plugin debe declarar plataformas")
+        object.__setattr__(self, "metadata", _mapping(self.metadata))
+
+
+@dataclass(frozen=True)
+class Worker:
+    id: str
+    name: str
+    plugin_id: str
+    plugin_version: str
+    status: WorkerStatus
+    configuration: Mapping[str, Any]
+    secret_references: tuple[str, ...]
+    storage_path: str
+    verified_capabilities: frozenset[PluginCapability]
+    concurrency_limit: int
+    active_executions: int = 0
+    last_checked_at: str | None = None
+    last_error: str | None = None
+
+    def __post_init__(self) -> None:
+        for value, name in ((self.id, "id"), (self.name, "name"), (self.plugin_id, "plugin_id"), (self.plugin_version, "plugin_version"), (self.storage_path, "storage_path")):
+            _required(value, name)
+        if self.concurrency_limit < 1 or not 0 <= self.active_executions <= self.concurrency_limit:
+            raise ValidationError("límites de concurrencia inválidos")
+        object.__setattr__(self, "configuration", _mapping(self.configuration))
+
+    @property
+    def usable(self) -> bool:
+        return self.status is WorkerStatus.READY and self.active_executions < self.concurrency_limit
 
 
 @dataclass(frozen=True)
@@ -363,390 +263,246 @@ class Agent:
     id: str
     project_id: str
     name: str
-    agent_type: AgentType
-    config_ref: str
-    documentation_ref: str
+    role: str
+    responsibilities: tuple[str, ...]
+    required_capabilities: frozenset[PluginCapability]
+    restrictions: tuple[str, ...]
+    instruction_revision: int
     status: AgentStatus
-    created_at: str
-    updated_at: str
+    pinned_worker_id: str | None = None
+
+    def __post_init__(self) -> None:
+        for value, name in ((self.id, "id"), (self.project_id, "project_id"), (self.name, "name"), (self.role, "role")):
+            _required(value, name)
+        if self.instruction_revision < 1:
+            raise ValidationError("instruction_revision debe ser positiva")
 
 
 @dataclass(frozen=True)
-class AgentSession:
+class ProviderSession:
     id: str
+    project_id: str
     agent_id: str
-    codex_thread_id: str | None
-    codex_account_id: str
-    persistence_state: SessionPersistenceState
-    last_activity_at: str | None
+    purpose: str
+    worker_id: str
+    context_hash: str
+    status: ProviderSessionStatus
+    workspace_id: str | None = None
+    provider_reference: str | None = None
+    continuity_metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        for value, name in ((self.id, "id"), (self.project_id, "project_id"), (self.agent_id, "agent_id"), (self.purpose, "purpose"), (self.worker_id, "worker_id"), (self.context_hash, "context_hash")):
+            _required(value, name)
+        object.__setattr__(self, "continuity_metadata", _mapping(self.continuity_metadata))
+
+
+@dataclass(frozen=True)
+class ProviderExecution:
+    id: str
+    worker_id: str
+    session_id: str
+    state: ExecutionState
+    idempotency_key: str
+    outcome: ExecutionOutcome | None = None
+    provider_reference: str | None = None
+    error_category: str | None = None
+    result: Mapping[str, Any] = field(default_factory=dict)
+    reconciliation: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        for value, name in ((self.id, "id"), (self.worker_id, "worker_id"), (self.session_id, "session_id"), (self.idempotency_key, "idempotency_key")):
+            _required(value, name)
+        if (self.state is ExecutionState.FINISHED) != (self.outcome is not None):
+            raise ValidationError("solo FINISHED puede tener un resultado terminal")
+        object.__setattr__(self, "result", _mapping(self.result))
+        object.__setattr__(self, "reconciliation", _mapping(self.reconciliation))
+
+    @property
+    def safe_to_retry_as_new(self) -> bool:
+        return self.state is ExecutionState.FINISHED and self.outcome is not ExecutionOutcome.UNKNOWN
+
+
+@dataclass(frozen=True)
+class PlanRevision:
+    id: str
+    project_id: str
+    issue_id: str
+    revision: int
+    status: PlanRevisionStatus
+    canonical_hash: str
+    payload: Mapping[str, Any]
     created_at: str
-    updated_at: str
+
+    def __post_init__(self) -> None:
+        if self.revision < 1:
+            raise ValidationError("revision debe ser positiva")
+        _required(self.canonical_hash, "canonical_hash")
+        object.__setattr__(self, "payload", _mapping(self.payload))
+
+
+@dataclass(frozen=True)
+class Approval:
+    id: str
+    plan_revision_id: str
+    plan_hash: str
+    approver_github_id: int
+    remote_event_id: str
+    approved_at: str
 
 
 @dataclass(frozen=True)
 class Task:
     id: str
-    project_id: str
-    agent_id: str
-    task_type: str
+    plan_revision_id: str
+    logical_id: str
+    description: str
     status: TaskStatus
-    external_ref: str | None
-    idempotency_key: str | None
-    prompt: str | None
-    created_at: str
-    updated_at: str
+    assigned_agent_id: str | None = None
+    dependencies: frozenset[str] = frozenset()
+
+    def __post_init__(self) -> None:
+        if self.id in self.dependencies:
+            raise ValidationError("una tarea no puede depender de sí misma")
+        _required(self.description, "description")
 
 
 @dataclass(frozen=True)
-class ExecutionAttempt:
+class Workspace:
+    id: str
+    project_id: str
+    purpose: str
+    path: str
+    base_branch: str
+    base_sha: str
+    status: str
+
+
+@dataclass(frozen=True)
+class PullRequest:
     id: str
     task_id: str
-    attempt_number: int
-    status: AttemptStatus
-    started_at: str
-    finished_at: str | None
-    error_code: str | None
-    error_category: str | None
-    error_message: str | None
-    error_details: Mapping[str, Any] | None
-    session_id: str | None
-    codex_thread_id: str | None
-    codex_turn_id: str | None
-    result_text: str | None
-
-
-@dataclass(frozen=True)
-class GitHubRepository:
-    id: str
-    project_id: str
-    github_id: int
-    node_id: str
-    owner_login: str
-    name: str
-    full_name: str
-    html_url: str
-    api_url: str
-    default_branch: str | None
-    visibility: str
-    archived: bool
-    is_empty: bool
-    permissions: Mapping[str, bool]
-    last_synced_at: str
-    created_at: str
-    updated_at: str
-
-
-@dataclass(frozen=True)
-class GitHubOperation:
-    id: str
-    repository_id: str
-    operation_type: str
-    idempotency_key: str
-    payload_hash: str
+    github_pr_id: int
+    number: int
+    head_ref: str
+    base_ref: str
+    head_sha: str
     status: str
-    remote_id: str | None
-    remote_url: str | None
-    error_code: str | None
-    error_message: str | None
-    created_at: str
-    updated_at: str
-
-
-@dataclass(frozen=True)
-class BootstrapWorkflow:
-    id: str
-    project_id: str
-    repository_id: str
-    github_issue_id: int
-    github_issue_node_id: str
-    issue_number: int
-    issue_url: str
-    principal_agent_id: str
-    status: BootstrapStatus
-    approval_label: str
-    approved_by: str | None
-    approved_event_id: int | None
-    approved_at: str | None
-    frozen_specification: str | None
-    last_polled_at: str | None
-    created_at: str
-    updated_at: str
-
-
-@dataclass(frozen=True)
-class BootstrapComment:
-    id: str
-    workflow_id: str
-    github_comment_id: int
-    github_node_id: str
-    author_login: str
-    author_type: str
-    body: str
-    remote_created_at: str
-    status: BootstrapCommentStatus
-    rejection_reason: str | None
-    task_id: str | None
-    response_text: str | None
-    response_github_comment_id: int | None
-    created_at: str
-    updated_at: str
-
-
-@dataclass(frozen=True)
-class GenerationWorkflow:
-    id: str
-    project_id: str
-    bootstrap_workflow_id: str
-    repository_id: str
-    approved_by: str
-    approved_event_id: int
-    specification_hash: str
-    workspace_path: str
-    remote_url: str
-    base_branch: str | None
-    base_commit: str | None
-    bootstrap_branch: str
-    git_configuration_id: str | None
-    git_configuration_hash: str | None
-    task_id: str | None
-    session_id: str | None
-    status: GenerationStatus
-    instruction_versions: Mapping[str, str]
-    generated_instruction_versions: Mapping[str, str]
-    validation_result: Mapping[str, Any] | None
-    commit_hash: str | None
-    blocked_reason: str | None
-    created_at: str
-    updated_at: str
-
-
-@dataclass(frozen=True)
-class GitConfiguration:
-    id: str
-    workflow_id: str
-    repository_id: str
-    revision: int
-    status: GitConfigurationStatus
-    schema_version: int
-    main_branch: str
-    base_branch_exists: bool
-    initialization_strategy: GitInitializationStrategy
-    technical_commit_policy: TechnicalCommitPolicy
-    publication_policy: GitPublicationPolicy
-    integration_policy: GitIntegrationPolicy
-    bootstrap_branch: str
-    authorized_operations: tuple[str, ...]
-    configuration_hash: str
-    source_comment_id: int | None
-    observed_github_id: int
-    observed_is_empty: bool
-    observed_default_branch: str | None
-    observed_head_sha: str | None
-    specification_hash: str | None
-    approved_by: str | None
-    approved_event_id: int | None
-    applied_at: str | None
-    created_at: str
-    updated_at: str
-
-
-@dataclass(frozen=True)
-class PublicationWorkflow:
-    id: str
-    project_id: str
-    bootstrap_workflow_id: str
-    git_configuration_id: str
-    generation_id: str
-    repository_id: str
-    status: PublicationStatus
-    base_branch: str
-    base_sha: str | None
-    published_branch: str
-    published_sha: str
-    pull_request_id: int | None
-    pull_request_number: int | None
-    pull_request_url: str | None
-    merge_commit_sha: str | None
-    remote_state_json: str | None
-    blocked_reason: str | None
-    activated_at: str | None
-    created_at: str
-    updated_at: str
-
-
-@dataclass(frozen=True)
-class SpecialistAgent:
-    agent_id: str
-    project_id: str
-    logical_id: str
-    display_name: str
-    status: SpecialistStatus
-    assigned_account_id: str
-    active_revision_id: str | None
-    created_by: str
-    created_at: str
-    updated_at: str
-
-
-@dataclass(frozen=True)
-class AgentConfigurationRevision:
-    id: str
-    agent_id: str
-    version: int
-    status: AgentRevisionStatus
-    role: str
-    responsibilities: tuple[str, ...]
-    capabilities: tuple[str, ...]
-    restrictions: tuple[str, ...]
-    instructions_path: str
-    instructions_hash: str
-    configuration_hash: str
-    source_commit: str | None
-    created_by: str
-    authorized_by: str | None
-    created_at: str
-    updated_at: str
-
-
-@dataclass(frozen=True)
-class AgentAuditEvent:
-    id: str
-    agent_id: str
-    project_id: str
-    operation: str
-    actor: str
-    previous_status: str | None
-    new_status: str | None
-    previous_version: int | None
-    new_version: int | None
-    result: str
-    detail: str | None
-    created_at: str
+    merge_commit_sha: str | None = None
 
 
 @dataclass(frozen=True)
 class IssueWorkflow:
     id: str
     project_id: str
-    repository_id: str
     github_issue_id: int
-    github_issue_node_id: str
     issue_number: int
-    issue_url: str
-    title: str
+    status: str
+
+
+@dataclass(frozen=True)
+class AuthorizedMessage:
+    id: str
+    issue_id: str
+    remote_kind: str
+    remote_id: str
+    author_github_id: int
     body: str
-    author_login: str
-    github_state: str
-    labels: tuple[str, ...]
-    principal_agent_id: str
-    status: IssueWorkflowStatus
-    approval_label: str
-    active_plan_revision_id: str | None
-    last_polled_at: str | None
-    blocked_reason: str | None
     created_at: str
-    updated_at: str
 
 
 @dataclass(frozen=True)
-class PlanRevision:
+class ReviewEvent:
     id: str
-    workflow_id: str
-    revision: int
-    status: PlanRevisionStatus
-    plan_hash: str
-    payload: Mapping[str, Any]
-    proposed_by_agent_id: str
-    published_comment_id: int | None
-    published_at: str | None
-    approved_by: str | None
-    approved_event_id: int | None
-    approved_at: str | None
-    specialist_snapshot: Mapping[str, Any] | None
-    frozen_context: Mapping[str, Any] | None
-    blocked_reason: str | None
-    created_at: str
-    updated_at: str
+    pull_request_id: str
+    remote_kind: str
+    remote_id: str
+    author_github_id: int
+    body: str
+    state: str | None = None
 
 
 @dataclass(frozen=True)
-class TaskExecutionWorkflow:
+class Correction:
+    id: str
+    pull_request_id: str
+    source_review_id: str
+    scope: str
+    status: str
+    previous_sha: str
+    new_sha: str | None = None
+
+
+@dataclass(frozen=True)
+class VerifiedMerge:
+    id: str
+    pull_request_id: str
+    merge_commit_sha: str
+    verified_at: str
+    method: str | None = None
+
+
+@dataclass(frozen=True)
+class DiscardedRemoteEvent:
     id: str
     project_id: str
-    issue_workflow_id: str
-    plan_revision_id: str
-    planned_task_id: str
-    task_id: str
-    repository_id: str
-    agent_id: str
-    agent_revision_id: str
-    agent_configuration_hash: str
-    instructions_hash: str
-    account_id: str
-    status: TaskExecutionStatus
-    workspace_path: str
-    remote_url: str
-    base_branch: str
-    base_sha: str
-    work_branch: str
-    session_id: str | None
-    instruction_versions: Mapping[str, str]
-    authorization_snapshot: Mapping[str, Any]
-    context_hash: str | None
-    allowed_paths: tuple[str, ...]
-    validation_commands: tuple[tuple[str, ...], ...]
-    validation_authorized_by: str | None
-    result_text: str | None
-    validation_result: Mapping[str, Any] | None
-    commit_sha: str | None
-    published_sha: str | None
-    pull_request_id: int | None
-    pull_request_number: int | None
-    pull_request_url: str | None
-    merge_commit_sha: str | None
-    remote_state: Mapping[str, Any] | None
-    blocked_reason: str | None
-    created_at: str
-    updated_at: str
+    remote_kind: str
+    remote_id: str
+    author_github_id: int | None
+    remote_created_at: str
+    discard_reason: str
 
 
 @dataclass(frozen=True)
-class PullRequestSupervision:
+class RecoveryBarrier:
     id: str
-    execution_id: str
-    project_id: str
-    repository_id: str
-    pull_request_number: int
-    status: PullRequestSupervisionStatus
-    review_state: str
-    observed_head_sha: str
-    merge_commit_sha: str | None
-    blocked_reason: str | None
+    reason: str
+    active: bool
     created_at: str
-    updated_at: str
+    cleared_at: str | None = None
+
+
+WORKER_TRANSITIONS = {
+    WorkerStatus.INSTALLING: frozenset({WorkerStatus.AUTHENTICATION_REQUIRED, WorkerStatus.VERIFYING, WorkerStatus.ERROR}),
+    WorkerStatus.AUTHENTICATION_REQUIRED: frozenset({WorkerStatus.VERIFYING, WorkerStatus.DISABLED, WorkerStatus.ERROR}),
+    WorkerStatus.VERIFYING: frozenset({WorkerStatus.READY, WorkerStatus.UNAVAILABLE, WorkerStatus.ERROR}),
+    WorkerStatus.READY: frozenset({WorkerStatus.UNAVAILABLE, WorkerStatus.DISABLED, WorkerStatus.ERROR}),
+    WorkerStatus.UNAVAILABLE: frozenset({WorkerStatus.VERIFYING, WorkerStatus.DISABLED, WorkerStatus.ERROR}),
+    WorkerStatus.DISABLED: frozenset({WorkerStatus.VERIFYING}),
+    WorkerStatus.ERROR: frozenset({WorkerStatus.VERIFYING, WorkerStatus.DISABLED}),
+}
+
+
+def worker_transition_allowed(current: WorkerStatus, requested: WorkerStatus) -> bool:
+    return requested == current or requested in WORKER_TRANSITIONS[current]
 
 
 @dataclass(frozen=True)
-class SupervisorJob:
+class ExternalOperation:
     id: str
-    project_id: str | None
-    job_type: str
-    category: WorkCategory
-    source_type: str
-    source_id: str
-    state: SupervisorJobState
-    priority: int
-    eligible_at: str
-    attempts: int
-    max_attempts: int
-    operation_key: str
-    payload: Mapping[str, Any]
-    last_error_category: str | None
-    last_error_message: str | None
-    next_action: str | None
-    runner_id: str | None
-    lease_token: str | None
-    lease_expires_at: str | None
-    created_at: str
-    updated_at: str
+    kind: str
+    idempotency_key: str
+    payload_hash: str
+    status: ExternalOperationStatus
+    remote_reference: str | None = None
+    reconciliation_data: Mapping[str, Any] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "reconciliation_data", _mapping(self.reconciliation_data))
+
+    @property
+    def may_repeat_blindly(self) -> bool:
+        return self.status is ExternalOperationStatus.FAILED
+
+
+@dataclass(frozen=True)
+class OperationalSnapshot:
+    github: GitHubConnectivity
+    execution: ExecutionCapacity
+    readiness: PublicReadiness
+    online: bool
+    administratively_paused: bool
+    recovery_barrier: bool
+    projects_available: bool
+    eligible_work: bool
+    work_allowed: bool

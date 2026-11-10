@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vibecoder"
-version = "0.4.0"
-description = "Orquestador persistente local de agentes Codex"
+version = "0.0.1"
+description = "Orquestador multiagente neutral respecto al proveedor de IA"
 requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.26,<1",
@@ -13,22 +13,13 @@ dependencies = [
 ]
 
 [project.scripts]
-vibecoder-m00-diagnose = "m00_codex.diagnostic:main"
-vibecoder-worker = "vibecoder.worker:main"
-vibecoder-bootstrap = "vibecoder.bootstrap:main"
-vibecoder-live-setup = "vibecoder.live_setup:main"
-vibecoder-generate = "vibecoder.generation:main"
-vibecoder-publish = "vibecoder.publication:main"
-vibecoder-agents = "vibecoder.agents:main"
-vibecoder-issues = "vibecoder.issues:main"
-vibecoder-tasks = "vibecoder.tasks:main"
-vibecoder-reviews = "vibecoder.reviews:main"
-vibecoder-supervisor = "vibecoder.supervisor:main"
-vibecoder-admin = "vibecoder.admin:main"
+vibecoder = "vibecoder.cli:main"
+vibecoderd = "vibecoder.daemon:main"
+vibecoder-worker-launcherd = "vibecoder.worker_launcher_service:main"
 
 [tool.setuptools.packages.find]
-include = ["m00_codex*", "vibecoder*"]
+include = ["vibecoder*"]
 
 [tool.setuptools.package-data]
-vibecoder = ["migrations/*.sql"]
+vibecoder = ["migrations/*.sql", "plugin_descriptors/*.json"]
 

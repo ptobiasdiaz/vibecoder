@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "id": "codex",
+  "version": "1.1.0",
+  "provider": "openai",
+  "platforms": ["linux"],
+  "authentication_methods": ["DEVICE_CODE", "API_KEY", "IMPORT"],
+  "capabilities": ["PERSISTENT_SESSIONS", "SESSION_CONTINUATION", "STRUCTURED_OUTPUT", "WORKSPACE_EXECUTION"],
+  "runtime": {"kind": "python-module", "module": "vibecoder.codex_plugin_runtime"},
+  "trusted_distribution": "vibecoder",
+  "available": true,
+  "diagnostic": "Requiere codex-cli 0.167.0, aislamiento systemd y autenticación propia",
+  "requirements": {
+    "compatible_codex_versions": ["0.167.0"],
+    "architectures": ["x86_64", "aarch64"],
+    "managed_manifest_required": true
+  }
+}

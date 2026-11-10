@@ -1,83 +1,34 @@
-# Codex GitHub Orchestrator — Diseño
+# vibecoder 0.0.1
 
-Repositorio de especificación y futura implementación de un orquestador multi-repositorio y multiagente basado en Codex y GitHub.
+Vibecoder is a provider-neutral, persistent multi-agent orchestrator. Version
+0.0.1 is a clean architectural break from 0.4.0: databases, configuration,
+entry points and packaging from the old line are not supported.
 
-## Propósito
-
-Permitir que un equipo dirija proyectos mediante GitHub Issues. Un agente principal persistente analiza, clasifica y negocia requisitos. Tras aprobación humana, agentes especializados persistentes planifican y supervisan sesiones de implementación aisladas. El resultado se entrega mediante Pull Requests con revisión y merge humanos.
-
-## Documentación
-
-- [Arquitectura](docs/architecture/overview.md)
-- [Modelo de agentes](docs/architecture/agents.md)
-- [Modelo de datos](docs/architecture/data-model.md)
-- [Protocolo de comentarios](docs/protocols/github-comments.md)
-- [Eventos y estados](docs/workflows/lifecycle.md)
-- [Bootstrap](docs/workflows/bootstrap.md)
-- [Operación, cuotas y Telegram](docs/architecture/operations.md)
-- [Decisiones arquitectónicas](docs/decisions/ADR-0001-foundations.md)
-- [Hitos](docs/milestones/roadmap.md)
-
-## Repositorios
-
-1. **Este repositorio**: diseño, documentación y futura implementación del orquestador.
-2. **Repositorio de prueba**: inicialmente vacío, se utilizará para validar el bootstrap de extremo a extremo.
-
-## Estado
-
-M00, M01, M02 y M03.2 están completados. M03.1 incorpora el adaptador REST de GitHub
-y el registro persistente de repositorios. M03.2 valida la conversación de bootstrap
-live mediante polling, agente principal persistente y aprobación atribuida. M03.3,
-también validado live, incorpora workspaces Git aislados, generación inicial,
-`.vibecoder/`, jerarquía `AGENTS.md`, validación y commits locales. M03.3.1 añade
-configuración Git negociada, aprobación conjunta y detección de deriva. M03.4
-implementa push recuperable, PR con merge exclusivamente humano y activación
-verificada, y su flujo remoto completo está validado live. Sin webhooks, Telegram ni
-despliegue. M04.1 incorpora gestión local persistente y auditada de especialistas,
-configuración versionada integrada en Git, cuentas y sesiones compatibles; su ciclo
-local de activación, persistencia, suspensión y reactivación está validado live. M04.2
-añade coordinación persistente de Issues, consultas de especialistas, planes
-estructurados y tareas aprobadas; el flujo está validado live hasta `MATERIALIZED`.
-M04.3–M04.5 completan ejecución, PRs, reviews, correcciones y supervisor continuo; el
-flujo integral está validado live con dos tareas dependientes y merges humanos. M05.1
-añade el paquete Debian, usuario de servicio, rutas FHS, configuración inicial inerte
-y unidad systemd. M05.2 añade `vibecoder-admin`, secretos protegidos, diagnóstico y
-activación operativa segura. Véanse
-[M00](docs/milestones/M00.md), [M01](docs/milestones/M01.md) y
-[M02](docs/milestones/M02.md), [M04.1](docs/milestones/M04.1.md) y
-[M04.3](docs/milestones/M04.3.md), [M04.4](docs/milestones/M04.4.md) y
-[M04.5](docs/milestones/M04.5.md).
-
-## Paquete Debian
+M06.1–M06.6 provide the neutral domain, SQLite schema 1, local daemon and CLI,
+a protected global GitHub identity, recoverable project registration, and a
+provider-neutral plugin/worker runtime, and an offline-validated Codex adapter.
+Codex installation, authentication and execution live remain explicitly opt-in.
 
 ```bash
-dpkg-buildpackage -us -uc -b
-sudo apt install ../vibecoder_0.4.0_all.deb
-vibecoder-supervisor --config /etc/vibecoder/supervisor.json status
-sudo vibecoder-admin doctor
-sudo vibecoder-admin service pause --kind all --reason maintenance
-sudo vibecoder-admin backup create --offline
+cd ~/dev/breakout
+vibecoder project add
+vibecoder project list
 ```
 
-La instalación arranca en `NOT_CONFIGURED` y no realiza operaciones externas. Consulte
-[la guía Debian](docs/installation/debian.md) y la
-[administración CLI](docs/administration/cli.md) antes de activar el servicio. La
-[primera configuración](docs/installation/first-run.md) puede completarse con
-`sudo vibecoder-admin setup init`; debconf nunca solicita secretos.
-Consulte también [backup y restauración](docs/operations/backup-restore.md) y
-[actualizaciones](docs/operations/upgrade.md). Debian 13 trixie es la plataforma
-soportada; Debian sid se valida de forma continua y Ubuntu 24.04 es experimental.
-Consulte la [matriz de compatibilidad](docs/installation/compatibility.md) y los
-[resultados finales de M05](docs/milestones/M05-final-results.md).
+- [Current architecture](docs/architecture/vibecoder-0.0.1.md)
+- [M06.1](docs/milestones/M06.1.md)
+- [M06.2](docs/milestones/M06.2.md)
+- [M06.3](docs/milestones/M06.3.md)
+- [M06.4](docs/milestones/M06.4.md)
+- [M06.5](docs/milestones/M06.5.md)
+- [M06.6](docs/milestones/M06.6.md)
+- [Codex plugin](docs/architecture/codex-plugin.md)
+- [Plugins and workers](docs/architecture/plugins.md)
+- [Worker isolation](docs/security/worker-isolation.md)
+- [Project registration](docs/projects/registration.md)
+- [Fine-grained PAT](docs/github/fine-grained-pat.md)
+- [Roadmap](docs/milestones/roadmap.md)
+- [Agent instructions](AGENTS.md)
 
-## Supervisor continuo
-
-```bash
-.venv/bin/python -m vibecoder.supervisor --config /ruta/supervisor.json config-check
-.venv/bin/python -m vibecoder.supervisor --config /ruta/supervisor.json dry-run
-.venv/bin/python -m vibecoder.supervisor --config /ruta/supervisor.json run
-```
-
-Las publicaciones remotas están deshabilitadas por defecto. El token GitHub se
-resuelve por referencia al almacén protegido; se conserva el fallback de entorno para
-compatibilidad y nunca se persiste su valor en configuración.
+Historical M00–M05 documents remain as engineering evidence and are not the
+current product contract.

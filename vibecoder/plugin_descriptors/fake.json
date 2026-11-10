@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "fake",
+  "version": "1.0.0",
+  "provider": "vibecoder-test",
+  "platforms": ["linux"],
+  "authentication_methods": ["NONE"],
+  "capabilities": ["PERSISTENT_SESSIONS", "SESSION_CONTINUATION", "CANCELLATION", "RECONCILIATION", "STRUCTURED_OUTPUT", "WORKSPACE_EXECUTION"],
+  "runtime": {"kind": "python-module", "module": "vibecoder.fake_plugin_runtime"},
+  "trusted_distribution": "vibecoder",
+  "test_only": true
+}

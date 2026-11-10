@@ -1,4 +1,7 @@
-# Agentes, responsabilidades y sesiones
+# Agentes, responsabilidades y sesiones (histórico, vibecoder 0.4.0)
+
+> En 0.0.1 los agentes son neutrales y usan workers. Véase
+> [vibecoder-0.0.1.md](vibecoder-0.0.1.md).
 
 ## Tipos
 

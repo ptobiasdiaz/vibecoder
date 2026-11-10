@@ -1,0 +1,22 @@
+[Unit]
+Description=vibecoder constrained worker launcher (integration)
+Before=vibecoderd.service
+
+[Service]
+Type=simple
+ExecStartPre=/usr/bin/install -d -o vibecoder -g vibecoder-admin -m 0711 /run/vibecoder
+ExecStart=/opt/vibecoder-integration/venv/bin/vibecoder-worker-launcherd --group vibecoder --python /opt/vibecoder-integration/venv/bin/python
+User=root
+Group=root
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/run/vibecoder
+RestrictSUIDSGID=yes
+LockPersonality=yes
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_SETGID CAP_SETUID
+
+[Install]
+WantedBy=multi-user.target

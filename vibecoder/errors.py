@@ -5,6 +5,15 @@ class CoreError(RuntimeError):
     pass
 
 
+class OperationError(CoreError):
+    """Safe error that may cross the local control boundary."""
+    code = "OPERATION_ERROR"
+
+    def __init__(self, message: str, *, details: dict[str, object] | None = None):
+        self.details = details or {}
+        super().__init__(message)
+
+
 class ValidationError(CoreError):
     pass
 

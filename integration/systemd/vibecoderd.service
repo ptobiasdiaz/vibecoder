@@ -1,0 +1,25 @@
+[Unit]
+Description=vibecoder 0.0.1 integration daemon
+After=vibecoder-worker-launcher.service
+Requires=vibecoder-worker-launcher.service
+
+[Service]
+Type=simple
+ExecStart=/opt/vibecoder-integration/venv/bin/vibecoderd --database /var/lib/vibecoder/vibecoder.db --socket /run/vibecoder/control.sock --secrets /var/lib/vibecoder/secrets --workspaces /var/lib/vibecoder/workspaces --admin-group vibecoder-admin --socket-group vibecoder-admin --worker-helper /run/vibecoder/worker-launch.sock
+User=vibecoder
+Group=vibecoder
+SupplementaryGroups=vibecoder-admin vibecoder-runtime
+UMask=0077
+Restart=on-failure
+RestartSec=2s
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/vibecoder /run/vibecoder
+RestrictSUIDSGID=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

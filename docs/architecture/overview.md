@@ -1,4 +1,6 @@
-# Arquitectura general
+# Arquitectura general (histórica, vibecoder 0.4.0)
+
+> El contrato vigente está en [vibecoder-0.0.1.md](vibecoder-0.0.1.md).
 
 ## Componentes
 

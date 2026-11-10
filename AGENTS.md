@@ -28,7 +28,9 @@ migrations, entry points, or configuration formats from vibecoder 0.4.0.
 - M06.6.2 runtime approvals are per provider action, deny by default, and
   distinct from plan approvals. Never replay an unconfirmed approval after a
   restart; preserve it as `UNKNOWN`.
-- Automatic agents and live workflow execution remain out of scope.
+- M06.7 permits automatic materialization of logical agents only from a
+  validated, human-approved immutable plan. Provider workers never own the
+  administrative records or GitHub effects.
 - The CLI must never open SQLite. Mutations belong to the daemon and use kernel peer credentials.
 - The GitHub PAT is daemon-owned secret material. Never include it in domain
   objects, diagnostics, audit details, exceptions, URLs, arguments or plugin contracts.

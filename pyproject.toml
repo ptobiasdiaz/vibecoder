@@ -9,7 +9,6 @@ description = "Orquestador multiagente neutral respecto al proveedor de IA"
 requires-python = ">=3.11"
 dependencies = [
     "httpx>=0.26,<1",
-    "pydantic>=1.10.14,<3",
 ]
 
 [project.scripts]

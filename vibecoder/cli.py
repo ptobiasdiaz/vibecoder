@@ -124,6 +124,14 @@ def build_parser() -> argparse.ArgumentParser:
     approval.add_argument("--json", action="store_true", dest="as_json")
     approval.add_argument("--pending", action="store_true")
     approval.add_argument("--worker")
+    workflow = commands.add_parser("workflow", help="consulta y sondea el workflow Issues a PR")
+    workflow.add_argument("workflow_args", nargs="+"); workflow.add_argument("--json", action="store_true", dest="as_json")
+    jobs = commands.add_parser("job", help="consulta el scheduler persistente")
+    jobs.add_argument("job_args", nargs="+"); jobs.add_argument("--json", action="store_true", dest="as_json")
+    maintenance = commands.add_parser("maintenance", help="diagnóstico y reconciliación conservadora")
+    maintenance.add_argument("maintenance_args", nargs="+"); maintenance.add_argument("--json", action="store_true", dest="as_json")
+    backup = commands.add_parser("backup", help="crea, verifica y restaura backups locales")
+    backup.add_argument("backup_args", nargs="+"); backup.add_argument("--json", action="store_true", dest="as_json")
     return parser
 
 
@@ -181,6 +189,8 @@ def _project_request(args: argparse.Namespace) -> tuple[str, dict[str, Any]]:
                                "ignore_dirty": args.ignore_dirty}
     if values == ["list"]:
         return "project.list", {}
+    if len(values) == 2 and values[0] == "status":
+        return "project.status", {"project": values[1]}
     if len(values) < 2:
         raise RuntimeError("indique una acción: status, authorize, deauthorize o users")
     project, action = values[0], values[1]
@@ -271,6 +281,16 @@ def _print_approval(args: argparse.Namespace, result: Mapping[str, Any]) -> None
             print("  Detalles: " + json.dumps(item["details"], ensure_ascii=False, sort_keys=True))
             print("  Decisiones: " + ", ".join(item["allowed_decisions"]))
 
+def _generic_request(command: str, values: list[str]) -> tuple[str, dict[str, Any]]:
+    if command == "workflow" and values == ["status"]: return "workflow.status", {}
+    if command == "workflow" and len(values)==2 and values[0]=="poll": return "workflow.poll", {"project":values[1]}
+    if command == "job" and values == ["list"]: return "job.list", {}
+    if command == "maintenance" and values in (["status"],["check"],["reconcile"]): return f"maintenance.{values[0]}", {}
+    if command == "maintenance" and len(values)==2 and values[0]=="clear-barrier": return "maintenance.clear-barrier", {"barrier":values[1]}
+    if command == "backup" and values in (["create"],["list"]): return f"backup.{values[0]}", {}
+    if command == "backup" and len(values)==2 and values[0] in {"verify","restore"}: return f"backup.{values[0]}", {"backup":values[1]}
+    raise RuntimeError(f"acción de {command} no válida")
+
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
@@ -297,6 +317,8 @@ def main(argv: list[str] | None = None) -> int:
             operation, arguments = _plugin_request(args)
         elif args.command == "worker":
             operation, arguments = _worker_request(args)
+        elif args.command in {"workflow","job","maintenance","backup"}:
+            operation, arguments = _generic_request(args.command, getattr(args, f"{args.command}_args"))
         result = client.request(operation, arguments)
         if operation == "worker.login" and result.get("status") == "RUNNING":
             operation_id = str(result["operation_id"]); worker_name = args.worker_args[0]
@@ -326,6 +348,8 @@ def main(argv: list[str] | None = None) -> int:
             _print_worker(args, result)
         elif args.command == "approval":
             _print_approval(args, result)
+        elif args.command in {"workflow","job","maintenance","backup"}:
+            print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         elif args.command == "pause":
             print("Pausa administrativa activa" if result["changed"] else "La pausa ya estaba activa")
         else:

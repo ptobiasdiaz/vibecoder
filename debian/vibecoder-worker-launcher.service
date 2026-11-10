@@ -1,0 +1,29 @@
+[Unit]
+Description=Vibecoder constrained worker launcher
+Before=vibecoder.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/vibecoder-worker-launcherd
+Restart=on-failure
+RestartSec=2s
+RuntimeDirectory=vibecoder
+RuntimeDirectoryMode=0750
+UMask=0077
+NoNewPrivileges=no
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/vibecoder/workers /var/lib/vibecoder/workspaces /run/vibecoder /etc
+RestrictSUIDSGID=true
+LockPersonality=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=false
+RestrictAddressFamilies=AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

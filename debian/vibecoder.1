@@ -1,0 +1,12 @@
+.TH VIBECODER 1 "November 2026" "vibecoder 0.0.1"
+.SH NAME
+vibecoder \- administer the local vibecoder daemon
+.SH SYNOPSIS
+.B vibecoder
+.I command
+.SH DESCRIPTION
+Configures GitHub, isolated workers and projects through the protected Unix socket.
+.SH QUICK START
+Run "vibecoder github login", "vibecoder worker add codex", "vibecoder worker codex-1 login", then from a Git repository run "vibecoder project add".
+.SH SECURITY
+Mutations require root or membership in vibecoder-admin. Workers never receive the GitHub PAT and pull request merges remain human-only.

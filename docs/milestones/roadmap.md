@@ -12,12 +12,13 @@ break and does not provide data, API, CLI, or package compatibility.
 | M06.5 | Plugin registry and generic workers | Implemented offline |
 | M06.6 | Codex plugin, managed runtime and authentication | Implemented; M06.6.1 live validated on Debian Sid |
 | M06.6.2 | Codex runtime approvals and live mediation | Implemented and live validated on Debian Sid |
-| M06.7 | Provider-neutral Issues, plans, tasks, PRs and reviews | Pending |
-| M06.8 | Supervisor integration, recovery and maintenance | Pending |
-| M06.9 | Debian package 0.0.1 and isolated systemd validation | Pending |
+| M06.7 | Provider-neutral Issues, plans, tasks, PRs and reviews | Implemented offline |
+| M06.8 | Supervisor integration, recovery and maintenance | Implemented offline |
+| M06.9 | Debian package 0.0.1 | Built and inspected; installation validation pending |
 | M06.10 | Opt-in Breakout live acceptance | Pending |
 
-M06 is complete only after M06.10 has evidence for the end-to-end flow.
+The implementation/package phase is complete. M06 remains pending M06.10 live
+evidence for the end-to-end flow with the installed package.
 
 M06.6.1 validó daemon, AF_UNIX, aislamiento systemd por UID, Codex 0.167.0,
 Device Code y continuidad real. GitHub live y la mediación humana de

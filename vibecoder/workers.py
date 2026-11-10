@@ -83,6 +83,14 @@ class PreprovisionedUnixIdentity:
             raise OperationError("directorio temporal del worker inseguro")
         return ProvisionedIdentity(user, path, "UNIX_USER_SYSTEMD", True)
 
+class PrivilegedUnixIdentityProvisioner:
+    """Ask the fixed-policy root launcher to create exactly one worker UID."""
+    def __init__(self, client: Any): self.client=client
+    def prepare(self, worker_id: str, storage_root: Path, admin_gid: int | None) -> ProvisionedIdentity:
+        value=self.client.provision(worker_id);path=Path(str(value["storage_path"]));expected=storage_root/worker_id
+        if path!=expected:raise OperationError("launcher devolvió storage inesperado")
+        return ProvisionedIdentity(str(value["unix_user"]),path,"UNIX_USER_SYSTEMD",True)
+
 
 class WorkerService:
     def __init__(self, repository: SQLiteRepository, plugins: PluginRegistry,

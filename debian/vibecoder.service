@@ -1,20 +1,20 @@
 [Unit]
-Description=Vibecoder persistent orchestration supervisor
-Documentation=file:/usr/share/doc/vibecoder/debian.md
-After=local-fs.target network-online.target
+Description=Vibecoder 0.0.1 orchestration daemon
+Documentation=file:/usr/share/doc/vibecoder/README.md.gz
+After=local-fs.target network-online.target vibecoder-worker-launcher.service
 Wants=network-online.target
-ConditionPathExists=/etc/vibecoder/supervisor.json
+Requires=vibecoder-worker-launcher.service
 
 [Service]
 Type=simple
 User=vibecoder
 Group=vibecoder
 WorkingDirectory=/var/lib/vibecoder
-ExecStart=/usr/bin/vibecoder-supervisor --config /etc/vibecoder/supervisor.json run
-EnvironmentFile=-/etc/vibecoder/environment
+SupplementaryGroups=vibecoder-admin vibecoder-runtime
+ExecStart=/usr/bin/vibecoderd --worker-helper /run/vibecoder/worker-launch.sock
 Restart=on-failure
 RestartSec=10s
-TimeoutStopSec=45s
+TimeoutStopSec=30s
 KillSignal=SIGTERM
 UMask=0027
 

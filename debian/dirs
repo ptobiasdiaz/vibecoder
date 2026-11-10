@@ -1,7 +1,7 @@
-etc/vibecoder
-var/lib/vibecoder/accounts
+var/lib/vibecoder
 var/lib/vibecoder/workspaces
-var/lib/vibecoder/state
+var/lib/vibecoder/workers
+var/lib/vibecoder/plugins
 var/lib/vibecoder/secrets
 var/lib/vibecoder/backups
-var/lib/vibecoder/recovery
+run/vibecoder

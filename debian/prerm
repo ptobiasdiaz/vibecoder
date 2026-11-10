@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = remove ] || [ "$1" = deconfigure ]; then
+    if command -v systemctl >/dev/null && [ -d /run/systemd/system ]; then
+        systemctl stop vibecoder.service vibecoder-worker-launcher.service || true
+        systemctl disable vibecoder-worker-launcher.service || true
+    fi
+fi
+
+#DEBHELPER#

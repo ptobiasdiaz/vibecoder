@@ -1,8 +1,16 @@
 #!/bin/sh
 set -e
 
-# Deliberately preserve /var/lib/vibecoder and the service identity, including
-# on purge. Removing persistent sessions/workspaces requires an explicit
-# administrator action outside package maintenance scripts.
+# remove/reinstall preserves all state. Purge is the explicit destructive path.
+if [ "$1" = purge ]; then
+    rm -rf -- /var/lib/vibecoder
+    getent passwd | while IFS=: read -r account _; do
+        case "$account" in vibecoder-w-????????????) userdel "$account" >/dev/null 2>&1 || true;; esac
+    done
+    userdel vibecoder >/dev/null 2>&1 || true
+    groupdel vibecoder-runtime >/dev/null 2>&1 || true
+    groupdel vibecoder-admin >/dev/null 2>&1 || true
+    groupdel vibecoder >/dev/null 2>&1 || true
+fi
 
 #DEBHELPER#

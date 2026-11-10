@@ -29,11 +29,14 @@ from .secret_store import FileSecretStore
 from .projects import HttpGitHubProjectAPI, ProjectService
 from .plugin_registry import PluginRegistry
 from .worker_runtime import PrivilegedWorkerLauncherClient, SystemdWorkerLauncher
-from .workers import WorkerService
+from .workers import WorkerService, PrivilegedUnixIdentityProvisioner
 from .codex_installation import CodexInstallationManager
 from .sqlite import SQLiteRepository
 from .approvals import RuntimeApprovalService
 from .runtime_approval_protocol import DEFAULT_RUNTIME_APPROVAL_SOCKET, RuntimeApprovalServer
+from .workflows_v1 import WorkflowService
+from .scheduler_v1 import PersistentScheduler
+from .maintenance_v1 import MaintenanceService
 
 DEFAULT_DATABASE = Path("/var/lib/vibecoder/vibecoder.db")
 DEFAULT_SOCKET = Path("/run/vibecoder/control.sock")
@@ -189,6 +192,8 @@ class VibecoderDaemon:
         self.approval_server: RuntimeApprovalServer | None = None
         self.approval_thread: threading.Thread | None = None
         self.stopping = False
+        self.scheduler_thread: threading.Thread | None = None
+        self.scheduler_stop = threading.Event()
 
     def start(self) -> None:
         prepare_socket_path(self.socket_path)
@@ -200,15 +205,20 @@ class VibecoderDaemon:
         projects = ProjectService(self.repository, identity, self.project_api_factory,
                                   self.workspaces_path, self.workspace_preparer)
         plugins = PluginRegistry(self.repository)
-        workers = WorkerService(self.repository, plugins, self.workers_path,
-                                self.worker_launcher or (PrivilegedWorkerLauncherClient(Path(self.worker_helper))
-                                    if self.worker_helper else SystemdWorkerLauncher(python=self.worker_python)),
-                                self.worker_provisioner, self.admin_gid,
+        launcher = self.worker_launcher or (PrivilegedWorkerLauncherClient(Path(self.worker_helper))
+                                    if self.worker_helper else SystemdWorkerLauncher(python=self.worker_python))
+        provisioner = self.worker_provisioner or (PrivilegedUnixIdentityProvisioner(launcher) if self.worker_helper else None)
+        workers = WorkerService(self.repository, plugins, self.workers_path, launcher,
+                                provisioner, self.admin_gid,
                                 {"codex": self.codex_installation or CodexInstallationManager(
                                     DEFAULT_PLUGIN_BINARIES / "codex", DEFAULT_CODEX_MANIFEST)})
         self.workers = workers
+        workflows = WorkflowService(self.repository, identity, workers)
+        scheduler = PersistentScheduler(self.repository, workflows)
+        scheduler.recover()
+        maintenance = MaintenanceService(self.repository, self.database_path.parent)
         self.service = ControlService(self.repository, LocalAuthorizer(self.admin_gid), identity,
-                                      projects, plugins, workers, self.approvals)
+                                      projects, plugins, workers, self.approvals, scheduler, maintenance)
         self.monitor = ConnectivityMonitor(identity)
         old_umask = os.umask(0o077)
         try:
@@ -226,6 +236,9 @@ class VibecoderDaemon:
             os.chmod(self.runtime_approval_socket, 0o660)
             self.approval_thread = threading.Thread(target=self.approval_server.serve_forever,
                 name="runtime-approvals", daemon=True); self.approval_thread.start()
+            self.scheduler_stop.clear()
+            self.scheduler_thread = threading.Thread(target=self._scheduler_loop,
+                name="workflow-scheduler", daemon=True); self.scheduler_thread.start()
         except Exception:
             self.server.server_close()
             self.socket_path.unlink(missing_ok=True)
@@ -236,6 +249,34 @@ class VibecoderDaemon:
 
     def request_stop(self, signum: int | None = None, frame: object = None) -> None:
         self.stopping = True
+        self.scheduler_stop.set()
+
+    def _scheduler_loop(self) -> None:
+        """Use an independent SQLite connection so remote polling never blocks control."""
+        repository = None
+        workers = None
+        try:
+            repository = SQLiteRepository(self.database_path)
+            secrets = FileSecretStore(self.secrets_path)
+            identity = GitHubIdentityService(repository, secrets,
+                **({"verifier_factory": self.verifier_factory} if self.verifier_factory else {}))
+            plugins = PluginRegistry(repository)
+            launcher=self.worker_launcher or (PrivilegedWorkerLauncherClient(Path(self.worker_helper)) if self.worker_helper else SystemdWorkerLauncher(python=self.worker_python))
+            provisioner=self.worker_provisioner or (PrivilegedUnixIdentityProvisioner(launcher) if self.worker_helper else None)
+            workers = WorkerService(repository, plugins, self.workers_path, launcher,
+                provisioner, self.admin_gid,
+                {"codex": self.codex_installation or CodexInstallationManager(DEFAULT_PLUGIN_BINARIES / "codex", DEFAULT_CODEX_MANIFEST)})
+            scheduler = PersistentScheduler(repository, WorkflowService(repository, identity, workers))
+            scheduler.recover()
+            while not self.scheduler_stop.wait(1.0):
+                try: scheduler.cycle()
+                except Exception:
+                    # Jobs retain their durable failure state; daemon availability
+                    # must not depend on an external service.
+                    continue
+        finally:
+            if workers is not None: workers.close()
+            if repository is not None: repository.close()
 
     def run(self) -> None:
         self.start()
@@ -261,6 +302,9 @@ class VibecoderDaemon:
                 if self.approval_server is not None:
                     self.approval_server.shutdown(); self.approval_server.server_close(); self.approval_server = None
                 self.runtime_approval_socket.unlink(missing_ok=True)
+                self.scheduler_stop.set()
+                if self.scheduler_thread is not None:
+                    self.scheduler_thread.join(timeout=5); self.scheduler_thread = None
             finally:
                 if self.repository is not None:
                     if self.workers is not None:

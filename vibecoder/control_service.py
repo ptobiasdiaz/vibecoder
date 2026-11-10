@@ -54,7 +54,9 @@ class LocalAuthorizer:
 class ControlService:
     READ_OPERATIONS = frozenset({"status", "doctor", "github.status", "project.list",
                                  "project.status", "project.users", "plugin.list", "plugin.show",
-                                 "worker.list", "worker.status", "approval.list", "approval.show"})
+                                 "worker.list", "worker.status", "approval.list", "approval.show",
+                                 "workflow.status", "job.list", "maintenance.status", "maintenance.check",
+                                 "backup.list", "backup.verify"})
     MUTATING_OPERATIONS = frozenset({"pause", "resume", "github.login", "github.verify",
                                      "project.add", "project.authorize", "project.deauthorize"})
 
@@ -63,7 +65,8 @@ class ControlService:
                  projects: "ProjectService | None" = None,
                  plugins: "PluginRegistry | None" = None,
                  workers: "WorkerService | None" = None,
-                 approvals: "RuntimeApprovalService | None" = None):
+                 approvals: "RuntimeApprovalService | None" = None,
+                 scheduler: Any = None, maintenance: Any = None):
         self.repository = repository
         self.authorizer = authorizer
         self.github_identity = github_identity
@@ -71,9 +74,11 @@ class ControlService:
         self.plugins = plugins
         self.workers = workers
         self.approvals = approvals
+        self.scheduler, self.maintenance = scheduler, maintenance
         self.MUTATING_OPERATIONS = self.MUTATING_OPERATIONS | frozenset(
             {"worker.add", "worker.enable", "worker.disable", "worker.login", "worker.login-status", "worker.login-cancel", "worker.logout", "worker.verify",
-             "approval.approve", "approval.deny"})
+             "approval.approve", "approval.deny", "workflow.poll", "maintenance.reconcile",
+             "maintenance.clear-barrier", "backup.create", "backup.restore"})
         self._ensure_installation()
 
     def _ensure_installation(self) -> None:
@@ -112,6 +117,12 @@ class ControlService:
         elif operation in {"approval.show", "approval.approve", "approval.deny"}:
             if set(arguments) != {"approval"} or not isinstance(arguments.get("approval"), str):
                 raise ValueError(f"{operation} requiere approval")
+        elif operation in {"workflow.poll"}:
+            if set(arguments) != {"project"} or not isinstance(arguments.get("project"), str): raise ValueError("workflow.poll requiere project")
+        elif operation in {"backup.verify", "backup.restore"}:
+            if set(arguments) != {"backup"} or not isinstance(arguments.get("backup"), str): raise ValueError(f"{operation} requiere backup")
+        elif operation == "maintenance.clear-barrier":
+            if set(arguments) != {"barrier"} or not isinstance(arguments.get("barrier"), str): raise ValueError("maintenance.clear-barrier requiere barrier")
         elif arguments:
             raise ValueError(f"{operation} no acepta argumentos")
         if operation in self.MUTATING_OPERATIONS and not self.authorizer.is_administrator(peer):
@@ -174,6 +185,29 @@ class ControlService:
             result = self.approvals.decide(approval_id, decision, peer.actor)
             self.audit(peer.actor, operation, "runtime_approval", approval_id, "SUCCEEDED", f"decisión {decision}")
             return result
+        if operation == "workflow.status":
+            return {"issues": self.repository.query_all("SELECT id,project_id,issue_number,status,updated_at FROM issue_workflows ORDER BY updated_at DESC"),
+                    "plans": self.repository.query_all("SELECT id,issue_id,revision,canonical_hash,created_at FROM plan_revisions ORDER BY created_at DESC"),
+                    "tasks": self.repository.query_all("SELECT id,logical_id,status,updated_at FROM tasks ORDER BY created_at"),
+                    "pull_requests": self.repository.query_all("SELECT id,number,status,head_ref,base_ref,updated_at FROM pull_requests ORDER BY created_at")}
+        if operation == "workflow.poll":
+            if self.scheduler is None: raise ValueError("scheduler no disponible")
+            if self.projects is None: raise ValueError("proyectos no disponibles")
+            item=self.projects.get(str(arguments["project"]));result=self.scheduler.workflows.poll(str(item["id"]));self.audit(peer.actor,operation,"project",str(item["id"]),"SUCCEEDED","poll solicitado");return result
+        if operation == "job.list":
+            return {"jobs":self.repository.query_all("SELECT id,kind,source_type,source_id,state,attempts,eligible_at,updated_at FROM scheduled_jobs ORDER BY created_at DESC LIMIT 200")}
+        if operation.startswith("maintenance."):
+            if self.maintenance is None:raise ValueError("mantenimiento no disponible")
+            if operation == "maintenance.status":return self.maintenance.status()
+            if operation == "maintenance.check":return self.maintenance.check()
+            if operation == "maintenance.clear-barrier":return self.maintenance.clear_barrier(str(arguments["barrier"]),peer.actor)
+            return self.scheduler.reconcile(peer.actor) if self.scheduler else {"changed":0}
+        if operation.startswith("backup."):
+            if self.maintenance is None:raise ValueError("mantenimiento no disponible")
+            if operation == "backup.list":return {"backups":self.maintenance.list()}
+            if operation == "backup.verify":return self.maintenance.verify(str(arguments["backup"]))
+            if operation == "backup.create":return self.maintenance.create_backup(peer.actor)
+            return self.maintenance.restore(str(arguments["backup"]),peer.actor)
         if operation == "pause":
             return self.pause(peer.actor)
         return self.resume(peer.actor)

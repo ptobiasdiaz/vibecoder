@@ -88,10 +88,16 @@ class SQLiteTests(unittest.TestCase):
         self.assertEqual(caught.exception.kind, expected)
         self.assertEqual(hashlib.sha256(self.path.read_bytes()).digest(), before)
 
+    def create_foreign_schema(self, table):
+        connection=sqlite3.connect(self.path)
+        try:
+            connection.execute(f"CREATE TABLE {table}(id TEXT)");connection.commit()
+        finally:connection.close()
+
     def test_rejects_legacy_unknown_and_corrupt_without_modification(self):
-        self.assert_rejected_unchanged(lambda: sqlite3.connect(self.path).execute("CREATE TABLE codex_accounts(id TEXT)").connection.commit(), DatabaseKind.LEGACY_0_4)
+        self.assert_rejected_unchanged(lambda: self.create_foreign_schema("codex_accounts"), DatabaseKind.LEGACY_0_4)
         self.path.unlink()
-        self.assert_rejected_unchanged(lambda: sqlite3.connect(self.path).execute("CREATE TABLE alien(id TEXT)").connection.commit(), DatabaseKind.UNKNOWN)
+        self.assert_rejected_unchanged(lambda: self.create_foreign_schema("alien"), DatabaseKind.UNKNOWN)
         self.path.unlink()
         self.assert_rejected_unchanged(lambda: self.path.write_bytes(b"not sqlite"), DatabaseKind.CORRUPT)
 

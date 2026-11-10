@@ -4,16 +4,23 @@ Vibecoder is a provider-neutral, persistent multi-agent orchestrator. Version
 0.0.1 is a clean architectural break from 0.4.0: databases, configuration,
 entry points and packaging from the old line are not supported.
 
-M06.1–M06.6 provide the neutral domain, SQLite schema 1, local daemon and CLI,
-a protected global GitHub identity, recoverable project registration, and a
-provider-neutral plugin/worker runtime, and an offline-validated Codex adapter.
-Codex installation, authentication and execution live remain explicitly opt-in.
+M06.1–M06.9 provide the neutral domain, SQLite schema 1, local daemon and CLI,
+a protected global GitHub identity, recoverable project registration, isolated
+workers, Codex App Server, human approvals, the Issues-to-PR workflow, a
+persistent scheduler, local recovery and Debian packaging.
 
 ```bash
-cd ~/dev/breakout
-vibecoder project add
-vibecoder project list
+sudo apt install ./builds/vibecoder_0.0.1_amd64.deb
+sudo usermod -aG vibecoder-admin "$USER"   # vuelva a iniciar sesión
+vibecoder github login
+vibecoder worker add codex
+vibecoder worker codex-1 login
+cd ~/dev/breakout && vibecoder project add
 ```
+
+Only GitHub users authorized on a project can provide instructions or approve
+an exact plan revision. Vibecoder can push task branches and open pull requests;
+reviews and merges remain exclusively human.
 
 - [Current architecture](docs/architecture/vibecoder-0.0.1.md)
 - [M06.1](docs/milestones/M06.1.md)
@@ -28,6 +35,8 @@ vibecoder project list
 - [Project registration](docs/projects/registration.md)
 - [Fine-grained PAT](docs/github/fine-grained-pat.md)
 - [Roadmap](docs/milestones/roadmap.md)
+- [First run](docs/installation/first-run-0.0.1.md)
+- [Issues to PR](docs/workflows/issues-to-pr-0.0.1.md)
 - [Agent instructions](AGENTS.md)
 
 Historical M00–M05 documents remain as engineering evidence and are not the

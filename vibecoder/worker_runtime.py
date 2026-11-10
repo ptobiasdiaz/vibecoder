@@ -115,6 +115,26 @@ class PrivilegedWorkerLauncherClient:
         if not isinstance(result, dict): raise OperationError("resultado launcher inválido")
         return result
 
+    def provision(self, worker_id: str) -> dict[str, Any]:
+        payload={"version":RUNTIME_PROTOCOL_VERSION,"request_id":os.urandom(16).hex(),"worker_id":worker_id,"operation":"provision","arguments":{}}
+        return self._exchange(payload)
+
+    def _exchange(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        connection=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM);connection.settimeout(self.timeout)
+        try:
+            connection.connect(str(self.socket_path));connection.sendall(encode_runtime(payload));chunks=[]
+            while True:
+                chunk=connection.recv(65536)
+                if not chunk:break
+                chunks.append(chunk)
+        except OSError as exc:raise OperationError("launcher privilegiado no disponible",details={"category":"LAUNCHER_UNAVAILABLE"}) from exc
+        finally:connection.close()
+        response=decode_runtime(b"".join(chunks))
+        if not response.get("ok"):raise OperationError("aprovisionamiento de worker rechazado",details={"category":str(response.get("error",{}).get("category","PROVISION_FAILED"))})
+        result=response.get("result")
+        if not isinstance(result,dict):raise OperationError("respuesta de aprovisionamiento inválida")
+        return result
+
 
 class DirectProcessLauncher:
     """Offline-test launcher. Same UID: never claim production isolation."""

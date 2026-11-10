@@ -8,27 +8,22 @@ Build-Depends:
  pybuild-plugin-pyproject,
  python3-all,
  python3-httpx (>= 0.26),
- python3-pydantic (>= 1.10.14),
  python3-setuptools (>= 68)
 Standards-Version: 4.7.2
 Rules-Requires-Root: no
 Homepage: https://github.com/ptobiasdiaz/vibecoder
 
 Package: vibecoder
-Architecture: all
-Pre-Depends: ${misc:Pre-Depends}
+Architecture: amd64
 Depends:
  ${misc:Depends},
  ${python3:Depends},
  adduser,
  ca-certificates,
- debconf (>= 0.5) | debconf-2.0,
  git,
  python3-httpx (>= 0.26),
- python3-pydantic (>= 1.10.14),
  systemd-sysv
-Description: persistent Codex and GitHub multi-agent orchestrator
- Vibecoder coordinates persistent agents, approved plans, isolated Git
- workspaces and recoverable GitHub workflows. This package installs the local
- runtime and its systemd supervisor. Codex authentication and projects must be
- configured separately before external work is enabled.
+Description: provider-neutral GitHub development orchestrator
+ Vibecoder coordinates authorized GitHub Issues, immutable human-approved
+ plans, isolated AI workers, Git workspaces and human-merged pull requests.
+ It starts safely in standby until GitHub and a worker are configured.

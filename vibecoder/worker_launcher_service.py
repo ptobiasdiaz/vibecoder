@@ -9,12 +9,15 @@ import struct
 import sys
 import threading
 import pwd
+import re
+import subprocess
 from pathlib import Path
 from typing import Any
 from .runtime_protocol import MAX_RUNTIME_MESSAGE, RUNTIME_PROTOCOL_VERSION, decode_runtime, encode_runtime
 from .worker_runtime import RuntimeLaunchSpec, SystemdWorkerLauncher
 
 DEFAULT_SOCKET = Path("/run/vibecoder/worker-launch.sock")
+_WORKER_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\Z")
 
 
 def receive_frame(connection: socket.socket) -> bytes:
@@ -53,6 +56,51 @@ def validate_request(value: dict[str, Any]) -> tuple[RuntimeLaunchSpec, dict[str
     spec = RuntimeLaunchSpec(worker_id, str(args["unix_user"]), str(args["module"]), storage, workspace, timeout)
     spec.validate(); return spec, request
 
+def provision_worker(worker_id: str) -> dict[str, Any]:
+    if not isinstance(worker_id,str) or not _WORKER_ID.fullmatch(worker_id):raise ValueError("worker id no válido")
+    user="vibecoder-w-"+worker_id.replace("-","")[:12];storage=Path("/var/lib/vibecoder/workers")/worker_id
+    try:account=pwd.getpwnam(user)
+    except KeyError:
+        result=subprocess.run(("/usr/sbin/useradd","--system","--user-group","--home-dir",str(storage),"--no-create-home","--shell","/usr/sbin/nologin","--groups","vibecoder-runtime","--",user),stdout=subprocess.DEVNULL,stderr=subprocess.PIPE,text=True,check=False,timeout=30)
+        if result.returncode:raise RuntimeError("no se pudo crear identidad fija de worker")
+        account=pwd.getpwnam(user)
+    if account.pw_uid in {0,pwd.getpwnam("vibecoder").pw_uid}:raise RuntimeError("UID de worker inseguro")
+    storage.mkdir(parents=True,exist_ok=True,mode=0o700);os.chown(storage,account.pw_uid,account.pw_gid);os.chmod(storage,0o700)
+    for name in ("tmp","codex-home"):
+        path=storage/name
+        if path.is_symlink():raise RuntimeError("storage worker contiene symlink")
+        path.mkdir(mode=0o700,exist_ok=True);os.chown(path,account.pw_uid,account.pw_gid);os.chmod(path,0o700)
+    return {"unix_user":user,"storage_path":str(storage)}
+
+def prepare_workspace(path: Path, unix_user: str) -> None:
+    account=pwd.getpwnam(unix_user);root=Path("/var/lib/vibecoder/workspaces")
+    if path.parent!=root or path.is_symlink() or not path.is_dir():raise ValueError("workspace inseguro")
+    for current,dirs,files in os.walk(path,followlinks=False):
+        current_path=Path(current)
+        for name in dirs+files:
+            candidate=current_path/name
+            if candidate.is_symlink():
+                try:candidate.resolve(strict=False).relative_to(path)
+                except ValueError as exc:raise ValueError("symlink fuera del workspace") from exc
+                os.lchown(candidate,account.pw_uid,account.pw_gid)
+        os.chown(current_path,account.pw_uid,account.pw_gid)
+        for name in files:
+            candidate=current_path/name
+            if candidate.is_symlink():continue
+            mode=stat.S_IMODE(candidate.stat().st_mode)&0o700;os.chown(candidate,account.pw_uid,account.pw_gid);os.chmod(candidate,mode or 0o600)
+
+def restore_workspace(path: Path) -> None:
+    account=pwd.getpwnam("vibecoder")
+    for current,dirs,files in os.walk(path,followlinks=False):
+        current_path=Path(current);os.chown(current_path,account.pw_uid,account.pw_gid);os.chmod(current_path,0o700)
+        for name in files:
+            candidate=current_path/name
+            if candidate.is_symlink():
+                try:candidate.resolve(strict=False).relative_to(path)
+                except ValueError as exc:raise ValueError("symlink fuera del workspace") from exc
+                os.lchown(candidate,account.pw_uid,account.pw_gid);continue
+            mode=stat.S_IMODE(candidate.stat().st_mode)&0o700;os.chown(candidate,account.pw_uid,account.pw_gid);os.chmod(candidate,mode or 0o600)
+
 
 def _handle(connection: socket.socket, launcher: SystemdWorkerLauncher, allowed_uid: int) -> None:
     with connection:
@@ -62,8 +110,15 @@ def _handle(connection: socket.socket, launcher: SystemdWorkerLauncher, allowed_
             _pid, uid, _gid = struct.unpack("3i", peer)
             if uid != allowed_uid: raise PermissionError("cliente launcher no autorizado")
             raw = receive_frame(connection)
-            value = decode_runtime(raw); spec, request = validate_request(value)
-            result = launcher.invoke(spec, request)
+            value = decode_runtime(raw)
+            if value.get("operation")=="provision" and value.get("arguments")=={}:
+                result=provision_worker(value.get("worker_id"))
+            else:
+                spec, request = validate_request(value)
+                if spec.workspace_path:prepare_workspace(spec.workspace_path,spec.unix_user)
+                try:result = launcher.invoke(spec, request)
+                finally:
+                    if spec.workspace_path:restore_workspace(spec.workspace_path)
             response = {"version": RUNTIME_PROTOCOL_VERSION, "request_id": value.get("request_id"),
                 "worker_id": value.get("worker_id"), "ok": True, "result": result}
         except Exception as exc:

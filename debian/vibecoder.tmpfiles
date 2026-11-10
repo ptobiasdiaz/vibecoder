@@ -1,0 +1,7 @@
+d /run/vibecoder 0750 vibecoder vibecoder-runtime -
+d /var/lib/vibecoder 0750 vibecoder vibecoder -
+d /var/lib/vibecoder/secrets 0700 vibecoder vibecoder -
+d /var/lib/vibecoder/backups 0700 vibecoder vibecoder -
+d /var/lib/vibecoder/workspaces 0710 vibecoder vibecoder-runtime -
+d /var/lib/vibecoder/workers 0710 vibecoder vibecoder-runtime -
+d /var/lib/vibecoder/plugins 0750 vibecoder vibecoder -

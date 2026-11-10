@@ -1,3 +1,13 @@
+vibecoder (0.0.1) unstable; urgency=medium
+
+  * New incompatible provider-neutral architecture.
+  * Add local daemon, unified CLI and protected GitHub identity.
+  * Add isolated plugin workers and Codex App Server integration.
+  * Add authorized Issues-to-PR workflow and persistent scheduler.
+  * Add coherent local backup, recovery barriers and Debian services.
+
+ -- Tobias Diaz <tobias.diaz@uclm.es>  Tue, 10 Nov 2026 18:00:00 +0100
+
 vibecoder (0.4.0) unstable; urgency=medium
 
   * Add consistent local backups, staged restore and recovery barriers.

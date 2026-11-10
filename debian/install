@@ -1,2 +1,3 @@
-debian/supervisor.json etc/vibecoder/
-debian/accounts.json etc/vibecoder/
+integration/codex/codex-artifacts.json usr/share/vibecoder/
+debian/vibecoder-worker-launcher.service lib/systemd/system/
+debian/vibecoder.tmpfiles usr/lib/tmpfiles.d/

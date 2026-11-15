@@ -37,6 +37,8 @@ reviews and merges remain exclusively human.
 - [Roadmap](docs/milestones/roadmap.md)
 - [First run](docs/installation/first-run-0.0.1.md)
 - [Issues to PR](docs/workflows/issues-to-pr-0.0.1.md)
+- [Debian package E2E evidence](docs/integration/debian-package-e2e.md)
+- [M06.10 results](docs/milestones/M06.10.md)
 - [Agent instructions](AGENTS.md)
 
 Historical M00–M05 documents remain as engineering evidence and are not the

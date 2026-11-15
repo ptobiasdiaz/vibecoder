@@ -138,6 +138,35 @@ class PluginWorkerTests(unittest.TestCase):
         unsupported = self.workers.execute(session["id"], "key-unsupported", "x", mode="unknown")
         self.assertEqual(self.workers.cancel(unsupported["id"], mode="unsupported")["outcome"], "UNSUPPORTED")
 
+    def test_human_approval_wait_does_not_consume_execution_timeout(self):
+        worker = self.add(); self.seed_project_agent()
+        session = self.workers.create_session("p", "a", "implementation", "hash", worker["id"])
+        original = self.workers.launcher.invoke
+        captured = {}
+        def invoke(spec, request):
+            if request["operation"] == "execute":
+                captured["spec_timeout"] = spec.timeout
+                captured["arguments"] = request["arguments"]
+            return original(spec, request)
+        self.workers.launcher.invoke = invoke
+        result = self.workers.execute(session["id"], "separate-timeouts", "hello", approval_timeout=300)
+        self.assertEqual(result["outcome"], "SUCCEEDED")
+        self.assertEqual(captured["arguments"]["timeout"], 600)
+        self.assertEqual(captured["arguments"]["approval_timeout"], 300)
+        self.assertGreaterEqual(captured["spec_timeout"], 930)
+
+    def test_confirmed_prelaunch_rejection_is_failed_not_unknown(self):
+        worker = self.add(); self.seed_project_agent()
+        session = self.workers.create_session("p", "a", "implementation", "hash", worker["id"])
+        def reject(_spec, request):
+            if request["operation"] == "execute":
+                raise OperationError("rejected", details={"category": "PRELAUNCH_REJECTED"})
+            return {}
+        self.workers.launcher.invoke = reject
+        result = self.workers.execute(session["id"], "prelaunch-rejected", "hello")
+        self.assertEqual(result["outcome"], "FAILED")
+        self.assertEqual(result["error_category"], "PRELAUNCH_REJECTED")
+
     def test_restart_turns_running_into_unknown_without_retry(self):
         worker = self.add(); self.seed_project_agent()
         session = self.workers.create_session("p", "a", "x", "h", worker["id"])

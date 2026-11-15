@@ -57,8 +57,8 @@ def main() -> int:
         for name,module in WRAPPERS.items():
             target=stage/"usr/bin"/name;target.parent.mkdir(parents=True,exist_ok=True)
             target.write_text(f"#!/usr/bin/python3\nfrom {module} import main\nraise SystemExit(main())\n",encoding="utf-8");target.chmod(0o755)
-        copy(ROOT/"debian/vibecoder.service",stage/"lib/systemd/system/vibecoder.service",0o644)
-        copy(ROOT/"debian/vibecoder-worker-launcher.service",stage/"lib/systemd/system/vibecoder-worker-launcher.service",0o644)
+        copy(ROOT/"debian/vibecoder.service",stage/"usr/lib/systemd/system/vibecoder.service",0o644)
+        copy(ROOT/"debian/vibecoder-worker-launcher.service",stage/"usr/lib/systemd/system/vibecoder-worker-launcher.service",0o644)
         copy(ROOT/"debian/vibecoder.tmpfiles",stage/"usr/lib/tmpfiles.d/vibecoder.conf",0o644)
         copy(ROOT/"integration/codex/codex-artifacts.json",stage/"usr/share/vibecoder/codex-artifacts.json",0o644)
         copy(ROOT/"debian/vibecoder.1",stage/"usr/share/man/man1/vibecoder.1",0o644)
@@ -66,10 +66,12 @@ def main() -> int:
         copy(ROOT/"docs/installation/first-run-0.0.1.md",stage/"usr/share/doc/vibecoder/first-run.md",0o644)
         copy(ROOT/"docs/workflows/issues-to-pr-0.0.1.md",stage/"usr/share/doc/vibecoder/issues-to-pr.md",0o644)
         copy(ROOT/"debian/copyright",stage/"usr/share/doc/vibecoder/copyright",0o644)
-        copy(ROOT/"debian/changelog",stage/"usr/share/doc/vibecoder/changelog.Debian",0o644)
-        compress(stage/"usr/share/man/man1/vibecoder.1");compress(stage/"usr/share/doc/vibecoder/changelog.Debian")
+        copy(ROOT/"debian/changelog",stage/"usr/share/doc/vibecoder/changelog",0o644)
+        compress(stage/"usr/share/man/man1/vibecoder.1");compress(stage/"usr/share/doc/vibecoder/changelog")
         for name in ("postinst","prerm","postrm"):
-            copy(ROOT/"debian"/name,stage/"DEBIAN"/name,0o755)
+            target=stage/"DEBIAN"/name
+            target.write_text((ROOT/"debian"/name).read_text().replace("#DEBHELPER#\n",""),encoding="utf-8")
+            target.chmod(0o755)
         files=[]
         for path in sorted(x for x in stage.rglob("*") if x.is_file() and "DEBIAN" not in x.parts):
             if not (path.stat().st_mode & 0o111):path.chmod(0o644)

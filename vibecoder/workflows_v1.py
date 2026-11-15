@@ -143,11 +143,18 @@ class WorkflowService:
                 if cauthor not in authorized:
                     counts["discarded"] += self._discard(project_id,"ISSUE_COMMENT",cid,cauthor,created,"UNAUTHORIZED_AUTHOR"); continue
                 body = str(comment.get("body") or "")
-                if self._message(issue_id,"ISSUE_COMMENT",cid,cauthor,body,created):
-                    counts["messages"] += 1
-                    match = APPROVE_RE.fullmatch(body.strip())
-                    if match: counts["approvals"] += self.approve_plan(issue_id, match.group(1), cauthor, cid)
-                    elif PLAN_RE.fullmatch(body.strip()): self._schedule(project_id,"GENERATE_PLAN","issue",issue_id,f"plan:{issue_id}:{cid}",50)
+                # Comments emitted by vibecoder carry an unforgeable durable
+                # plan marker for reconciliation.  They are output, never new
+                # agent instructions, even though the PAT owner is authorized.
+                if MARKER in body: continue
+                inserted = self._message(issue_id,"ISSUE_COMMENT",cid,cauthor,body,created)
+                if inserted: counts["messages"] += 1
+                match = APPROVE_RE.fullmatch(body.strip())
+                # Re-evaluate an exact approval after a crash/rollback.  The
+                # immutable approval row makes this idempotent; ordinary plan
+                # requests are scheduled only on first observation.
+                if match: counts["approvals"] += self.approve_plan(issue_id, match.group(1), cauthor, cid)
+                elif inserted and PLAN_RE.fullmatch(body.strip()): self._schedule(project_id,"GENERATE_PLAN","issue",issue_id,f"plan:{issue_id}:{cid}",50)
         counts["merges"] += self._poll_pull_requests(project, token, api, authorized)
         now = utc_now(); self.repository.execute("INSERT INTO workflow_cursors VALUES(?,?,?,?,?) ON CONFLICT(project_id) DO UPDATE SET last_poll_at=excluded.last_poll_at,last_success_at=excluded.last_success_at,last_error=NULL,updated_at=excluded.updated_at", (project_id,now,now,None,now))
         return counts
@@ -171,7 +178,15 @@ class WorkflowService:
         canonical = {"tasks":[{"id":t.logical_id,"title":t.title,"description":t.description,"agent":t.agent,"dependencies":list(t.dependencies),"acceptance":list(t.acceptance)} for t in tasks]}
         encoded = json.dumps(canonical, ensure_ascii=False, sort_keys=True, separators=(",",":")); digest = hashlib.sha256(encoded.encode()).hexdigest()
         existing = self.repository.query_one("SELECT * FROM plan_revisions WHERE issue_id=? AND canonical_hash=?", (issue_id,digest))
-        if existing: return existing
+        if existing:
+            publication = self.repository.query_one("SELECT status FROM workflow_publications WHERE plan_revision_id=?", (existing["id"],))
+            if not publication or publication["status"] != "SUCCEEDED":
+                # A new, authorized /vibecoder plan message is an explicit
+                # retry request.  Use a fresh scheduler key; publish_plan still
+                # reconciles the durable marker before any new POST.
+                self._schedule(project["id"],"PUBLISH_PLAN","plan",str(existing["id"]),
+                               f"publish-plan:{existing['id']}:retry:{uuid.uuid4()}",45)
+            return existing
         revision = int(self.repository.query_one("SELECT coalesce(max(revision),0)+1 AS n FROM plan_revisions WHERE issue_id=?", (issue_id,))["n"])
         plan_id, now = str(uuid.uuid4()), utc_now(); self.repository.execute("INSERT INTO plan_revisions VALUES(?,?,?,?,?,?,?)", (plan_id,issue_id,revision,"PROPOSED",digest,encoded,now))
         self._schedule(project["id"],"PUBLISH_PLAN","plan",plan_id,f"publish-plan:{plan_id}",45)
@@ -207,16 +222,26 @@ class WorkflowService:
         if existing and existing["status"] in {"SUCCEEDED","UNKNOWN"}:return existing
         project_workspace=self.repository.query_one("SELECT * FROM workspaces WHERE project_id=? AND purpose='PROJECT'",(task["project_id"],))
         if not project_workspace:raise OperationError("workspace base no disponible")
+        dependency_count=int(self.repository.query_one("SELECT count(*) n FROM task_dependencies WHERE task_id=?",(task_id,))["n"])
+        dependency_runs=self.repository.query_all("SELECT tr.result_sha,w.path FROM task_dependencies d JOIN task_runs tr ON tr.task_id=d.depends_on_task_id JOIN workspaces w ON w.id=tr.workspace_id WHERE d.task_id=? AND tr.status='SUCCEEDED' AND tr.result_sha IS NOT NULL ORDER BY d.depends_on_task_id",(task_id,))
+        if len(dependency_runs)!=dependency_count:raise ConflictError("resultados de dependencias no disponibles")
+        clone_source=Path(str(dependency_runs[0]["path"])) if dependency_runs else Path(str(project_workspace["path"]))
+        start_sha=str(dependency_runs[0]["result_sha"]) if dependency_runs else str(task["remote_sha"])
         branch=self._task_branch(int(task["issue_number"]),str(task["logical_id"])); workspace_id=str(uuid.uuid5(uuid.NAMESPACE_URL,f"task-workspace:{task_id}")); root=Path(str(project_workspace["path"])).parent; destination=root/workspace_id
         if destination.parent!=root or destination.is_symlink():raise OperationError("ruta de tarea insegura")
         run_id=str(existing["id"]) if existing else str(uuid.uuid4());now=utc_now()
-        if not existing:self.repository.execute("INSERT INTO task_runs VALUES(?,?,NULL,NULL,NULL,?,?,NULL,'PREPARING',?,?)",(run_id,task_id,branch,task["remote_sha"],now,now))
+        if not existing:self.repository.execute("INSERT INTO task_runs VALUES(?,?,NULL,NULL,NULL,?,?,NULL,'PREPARING',?,?)",(run_id,task_id,branch,start_sha,now,now))
         if not destination.exists():
-            result=subprocess.run(("git","clone","--no-hardlinks","--no-checkout","--",str(project_workspace["path"]),str(destination)),text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=120,check=False,shell=False,env={"PATH":"/usr/bin:/bin","LANG":"C","GIT_CONFIG_NOSYSTEM":"1","GIT_CONFIG_GLOBAL":"/dev/null"})
+            result=subprocess.run(("git","clone","--no-hardlinks","--no-checkout","--",str(clone_source),str(destination)),text=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=120,check=False,shell=False,env={"PATH":"/usr/bin:/bin","LANG":"C","GIT_CONFIG_NOSYSTEM":"1","GIT_CONFIG_GLOBAL":"/dev/null"})
             if result.returncode:raise OperationError("no se pudo crear el workspace de tarea")
-            self._git(destination,"checkout","--detach",str(task["remote_sha"]));self._git(destination,"switch","-c",branch,str(task["remote_sha"]));self._git(destination,"remote","set-url","origin",f"https://github.com/{task['canonical_name']}.git")
+            self._git(destination,"checkout","--detach",start_sha);self._git(destination,"switch","-c",branch,start_sha)
+            for dependency in dependency_runs[1:]:
+                self._git(destination,"fetch","--no-tags","--",str(dependency["path"]),str(dependency["result_sha"]))
+                self._git(destination,"-c","user.name=vibecoder","-c","user.email=vibecoder@localhost","-c","core.hooksPath=/dev/null","merge","--no-edit","FETCH_HEAD")
+            start_sha=self._git(destination,"rev-parse","HEAD").strip();self.repository.execute("UPDATE task_runs SET base_sha=?,updated_at=? WHERE id=?",(start_sha,utc_now(),run_id))
+            self._git(destination,"remote","set-url","origin",f"https://github.com/{task['canonical_name']}.git")
         if not self.repository.query_one("SELECT 1 FROM workspaces WHERE id=?",(workspace_id,)):
-            self.repository.execute("INSERT INTO workspaces VALUES(?,?,?,?,?,?,?,?,?)",(workspace_id,task["project_id"],"TASK",str(destination),task["base_branch"],task["remote_sha"],"READY",now,now))
+            self.repository.execute("INSERT INTO workspaces VALUES(?,?,?,?,?,?,?,?,?)",(workspace_id,task["project_id"],"TASK",str(destination),task["base_branch"],start_sha,"READY",now,now))
         worker=self._ready_worker(); prompt=f"Implementa exclusivamente la tarea {task['logical_id']}: {task['description']}. Criterios: {task['acceptance_json']}. Trabaja en el workspace asignado. No uses GitHub, no hagas push ni merge."
         session=self.workers.create_session(str(task["project_id"]),str(task["agent_id"]),"TASK",hashlib.sha256(prompt.encode()).hexdigest(),str(worker["id"]),workspace_id)
         self.repository.execute("UPDATE task_runs SET workspace_id=?,session_id=?,status='RUNNING',updated_at=? WHERE id=?",(workspace_id,session["id"],utc_now(),run_id));self.repository.execute("UPDATE tasks SET status='RUNNING',updated_at=? WHERE id=?",(utc_now(),task_id))
@@ -227,7 +252,8 @@ class WorkflowService:
         if execution.get("outcome")!="SUCCEEDED":
             self.repository.execute("UPDATE task_runs SET status='FAILED',updated_at=? WHERE id=?",(utc_now(),run_id));self.repository.execute("UPDATE tasks SET status='FAILED',updated_at=? WHERE id=?",(utc_now(),task_id));raise OperationError("la ejecución de tarea falló")
         status=self._git(destination,"status","--porcelain=v1","--untracked-files=all").strip()
-        if not status:raise OperationError("la tarea finalizó sin producir cambios")
+        if not status:
+            failed=utc_now();self.repository.execute("UPDATE task_runs SET status='FAILED',updated_at=? WHERE id=?",(failed,run_id));self.repository.execute("UPDATE tasks SET status='FAILED',updated_at=? WHERE id=?",(failed,task_id));raise OperationError("la tarea finalizó sin producir cambios")
         self._git(destination,"add","--all",":/");self._git(destination,"-c","user.name=vibecoder","-c","user.email=vibecoder@localhost","-c","core.hooksPath=/dev/null","commit","--no-gpg-sign","--no-verify","-m",f"feat: {task['logical_id']}")
         sha=self._git(destination,"rev-parse","HEAD").strip();token,_=self.identity.credential_for_internal_use();push_op=self._external("GIT_PUSH","task",task_id,f"push:{task_id}:{sha}",sha)
         try:self._push(destination,branch,token)
@@ -263,12 +289,18 @@ class WorkflowService:
     def approve_plan(self, issue_id: str, digest: str, github_user_id: int, remote_event_id: str) -> int:
         plan = self.repository.query_one("SELECT * FROM plan_revisions WHERE issue_id=? AND canonical_hash=?", (issue_id,digest))
         if not plan: return 0
-        if self.repository.query_one("SELECT 1 FROM approvals WHERE remote_event_id=?", (remote_event_id,)): return 0
-        now=utc_now(); self.repository.execute("INSERT INTO approvals VALUES(?,?,?,?,?,?)", (str(uuid.uuid4()),plan["id"],digest,github_user_id,remote_event_id,now))
-        self._materialize_tasks(plan)
-        issue=self._issue(issue_id); self.repository.execute("UPDATE issue_workflows SET status='APPROVED',updated_at=? WHERE id=?", (now,issue_id))
-        for task in self.repository.query_all("SELECT t.id,t.logical_id FROM tasks t WHERE t.plan_revision_id=? AND NOT EXISTS(SELECT 1 FROM task_dependencies d WHERE d.task_id=t.id)", (plan["id"],)):
-            self._schedule(str(issue["project_id"]),"EXECUTE_TASK","task",str(task["id"]),f"execute-task:{task['id']}",20)
+        now=utc_now(); issue=self._issue(issue_id)
+        prior = self.repository.query_one("SELECT * FROM approvals WHERE plan_revision_id=?", (plan["id"],))
+        if prior and issue["status"] == "APPROVED": return 0
+        if prior and (prior["plan_hash"] != digest or int(prior["approver_github_id"]) != github_user_id):
+            raise ConflictError("la revisión ya tiene una aprobación distinta")
+        with self.repository.transaction():
+            if not prior:
+                self.repository.execute("INSERT INTO approvals VALUES(?,?,?,?,?,?)", (str(uuid.uuid4()),plan["id"],digest,github_user_id,remote_event_id,now))
+            self._materialize_tasks(plan)
+            self.repository.execute("UPDATE issue_workflows SET status='APPROVED',updated_at=? WHERE id=?", (now,issue_id))
+            for task in self.repository.query_all("SELECT t.id,t.logical_id FROM tasks t WHERE t.plan_revision_id=? AND NOT EXISTS(SELECT 1 FROM task_dependencies d WHERE d.task_id=t.id)", (plan["id"],)):
+                self._schedule(str(issue["project_id"]),"EXECUTE_TASK","task",str(task["id"]),f"execute-task:{task['id']}",20)
         return 1
 
     def reconcile_unknown(self) -> dict[str,int]:
@@ -292,6 +324,20 @@ class WorkflowService:
                         if not self.repository.query_one("SELECT 1 FROM pull_requests WHERE task_id=?",(task["id"],)):
                             now=utc_now();self.repository.execute("INSERT INTO pull_requests VALUES(?,?,?,?,?,?,?,?,?,?,?)",(str(uuid.uuid4()),task["id"],int(remote["id"]),int(remote["number"]),task["branch_name"],task["base_branch"],task["result_sha"],"OPEN",None,now,now))
         return {"confirmed":confirmed}
+
+    def reconcile_incomplete_tasks(self) -> dict[str, int]:
+        """Repair only locally provable task/job terminal-state mismatches."""
+        changed=blocked=0
+        rows=self.repository.query_all("SELECT t.id task_id,tr.id run_id,tr.status run_status,w.path,e.outcome,e.id execution_id FROM scheduled_jobs j JOIN tasks t ON t.id=j.source_id JOIN task_runs tr ON tr.task_id=t.id JOIN provider_executions e ON e.id=tr.execution_id JOIN workspaces w ON w.id=tr.workspace_id WHERE j.kind='EXECUTE_TASK' AND j.state='FAILED' AND t.status='RUNNING' AND tr.status='RUNNING' AND e.state='FINISHED'")
+        for row in rows:
+            now=utc_now();outcome=str(row["outcome"] or "UNKNOWN")
+            if outcome=="SUCCEEDED" and not self._git(Path(str(row["path"])),"status","--porcelain=v1","--untracked-files=all").strip():
+                self.repository.execute("UPDATE task_runs SET status='FAILED',updated_at=? WHERE id=?",(now,row["run_id"]));self.repository.execute("UPDATE tasks SET status='FAILED',updated_at=? WHERE id=?",(now,row["task_id"]));changed+=1
+            elif outcome not in {"SUCCEEDED","UNKNOWN"}:
+                self.repository.execute("UPDATE task_runs SET status='FAILED',updated_at=? WHERE id=?",(now,row["run_id"]));self.repository.execute("UPDATE tasks SET status='FAILED',updated_at=? WHERE id=?",(now,row["task_id"]));changed+=1
+            else:
+                status="UNKNOWN" if outcome=="UNKNOWN" else "BLOCKED";self.repository.execute("UPDATE task_runs SET status=?,updated_at=? WHERE id=?",(status,now,row["run_id"]));self.repository.execute("UPDATE tasks SET status='BLOCKED',updated_at=? WHERE id=?",(now,row["task_id"]));self._barrier(f"estado posterior a ejecución requiere reconciliación {row['execution_id']}");changed+=1;blocked+=1
+        return {"changed":changed,"blocked":blocked}
 
     def _materialize_tasks(self, plan: Mapping[str, Any]) -> None:
         tasks=self._validate_plan(json.loads(str(plan["plan_json"]))); ids={t.logical_id:str(uuid.uuid5(uuid.UUID(str(plan["id"])),t.logical_id)) for t in tasks}; now=utc_now()
@@ -323,8 +369,12 @@ class WorkflowService:
         result=[]; names=set()
         for raw in value["tasks"]:
             if not isinstance(raw,dict) or set(raw)!={"id","title","description","agent","dependencies","acceptance"}: raise ValidationError("tarea de plan inválida")
-            logical=str(raw["id"]); deps=tuple(str(x) for x in raw["dependencies"]); acceptance=tuple(str(x) for x in raw["acceptance"])
-            if not LOGICAL_ID.fullmatch(logical) or logical in names or not isinstance(raw["dependencies"],list) or not isinstance(raw["acceptance"],list): raise ValidationError("identificador o campos de tarea inválidos")
+            if not isinstance(raw["dependencies"],list) or not isinstance(raw["acceptance"],list): raise ValidationError("identificador o campos de tarea inválidos")
+            # Provider output is probabilistic.  Canonicalize case at the trust
+            # boundary, then reject collisions instead of making prompt casing
+            # part of the durable workflow contract.
+            logical=str(raw["id"]).casefold(); deps=tuple(str(x).casefold() for x in raw["dependencies"]); acceptance=tuple(str(x) for x in raw["acceptance"])
+            if not LOGICAL_ID.fullmatch(logical) or logical in names: raise ValidationError("identificador o campos de tarea inválidos")
             names.add(logical); result.append(PlanTask(logical,str(raw["title"]),str(raw["description"]),str(raw["agent"]),deps,acceptance))
         if any(d not in names for t in result for d in t.dependencies): raise ValidationError("dependencia inexistente")
         visiting=set(); done=set(); by={t.logical_id:t for t in result}

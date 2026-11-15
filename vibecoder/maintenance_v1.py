@@ -19,8 +19,8 @@ from .sqlite import PRODUCT_LINE, SCHEMA_VERSION, SQLiteRepository
 
 class MaintenanceService:
     FORMAT_VERSION = 1
-    def __init__(self, repository: SQLiteRepository, state_root: Path, backup_root: Path | None = None):
-        self.repository=repository;self.state_root=state_root.absolute();self.backup_root=(backup_root or self.state_root/"backups").absolute()
+    def __init__(self, repository: SQLiteRepository, state_root: Path, backup_root: Path | None = None, privileged_helper=None):
+        self.repository=repository;self.state_root=state_root.absolute();self.backup_root=(backup_root or self.state_root/"backups").absolute();self.privileged_helper=privileged_helper
 
     def status(self) -> dict[str,Any]:
         return {"schema_version":self.repository.schema_version,"integrity":self.repository.integrity_check(),
@@ -46,9 +46,12 @@ class MaintenanceService:
             try:self.repository.connection.backup(target)
             finally:target.close()
             components={"database":"vibecoder.db"}
-            for name in ("secrets","workers","workspaces","plugins"):
+            for name in ("secrets","workspaces","plugins","workers"):
                 source=self.state_root/name
-                if source.exists():self._copy_tree(source,stage/name);components[name]=name
+                if source.exists():
+                    if name=="workers" and self.privileged_helper:self.privileged_helper.snapshot_workers(stage/name)
+                    else:self._copy_tree(source,stage/name)
+                    components[name]=name
             files=[]
             for path in sorted(x for x in stage.rglob("*") if x.is_file()):
                 rel=path.relative_to(stage).as_posix();files.append({"path":rel,"size":path.stat().st_size,"sha256":self._digest(path)})
@@ -74,6 +77,7 @@ class MaintenanceService:
         self._require_quiescent();path=self._resolve(query);manifest=self._verify_path(path)
         if manifest["schema_version"]!=SCHEMA_VERSION or manifest["product_line"]!=PRODUCT_LINE:raise ConflictError("backup incompatible")
         journal=self._journal("RESTORE","VERIFIED");rollback=self.backup_root/f"pre-restore-{uuid.uuid4().hex}"
+        replaced=[]
         try:
             rollback.mkdir(mode=0o700);current=rollback/"vibecoder.db";target=sqlite3.connect(current)
             try:self.repository.connection.backup(target)
@@ -84,16 +88,43 @@ class MaintenanceService:
                 if not check or check[0]!="ok":raise OperationError("SQLite del backup no es íntegro")
                 source.backup(self.repository.connection)
             finally:source.close()
+            # The archived database was captured before its BACKUP journal was
+            # published. It must never resurrect an apparently active action.
+            now=utc_now();self.repository.execute("UPDATE maintenance_journals SET phase='RECOVERED_FROM_BACKUP',status='FAILED',updated_at=? WHERE status='RUNNING'",(now,))
+            self.repository.execute("INSERT OR REPLACE INTO maintenance_journals VALUES(?,?,?,'RUNNING','{}',?,?)",(journal,"RESTORE","VERIFIED",now,now))
             # External filesystem state is restored only after SQLite validates.
             for name in ("secrets","workers","workspaces","plugins"):
                 source_path=path/name
                 if source_path.exists():
+                    if name=="workers" and self.privileged_helper:
+                        result=self.privileged_helper.restore_workers(source_path);replaced.append((name,Path(result["previous"])))
+                        continue
                     destination=self.state_root/name;old=rollback/name
-                    if destination.exists():os.replace(destination,old)
+                    if destination.exists():os.replace(destination,old);replaced.append((name,old))
                     self._copy_tree(source_path,destination)
             now=utc_now();self.repository.execute("INSERT INTO recovery_barriers VALUES(?,?,'ACTIVE',?,NULL,NULL)",(str(uuid.uuid4()),f"restauración {manifest['backup_id']} requiere reconciliación",now));self._journal_update(journal,"BARRIER_ACTIVE","SUCCEEDED",{"backup_id":manifest["backup_id"],"rollback":str(rollback)});self._audit(actor,"backup.restore",str(manifest["backup_id"]))
             return {"restored":True,"backup_id":manifest["backup_id"],"recovery_barrier":True,"rollback_path":str(rollback)}
-        except Exception:self._journal_update(journal,"FAILED","FAILED",{"rollback":str(rollback)});raise
+        except Exception:
+            # Revert every component already exchanged. A barrier remains even
+            # after successful rollback because the interruption requires an
+            # explicit integrity check before work resumes.
+            for name,old in reversed(replaced):
+                destination=self.state_root/name
+                try:
+                    if name=="workers" and self.privileged_helper:self.privileged_helper.restore_workers(old)
+                    else:
+                        if destination.exists():shutil.rmtree(destination)
+                        os.replace(old,destination)
+                except Exception:pass
+            try:
+                previous=sqlite3.connect(f"file:{rollback/'vibecoder.db'}?mode=ro",uri=True)
+                try:previous.backup(self.repository.connection)
+                finally:previous.close()
+            except Exception:pass
+            now=utc_now();self.repository.execute("UPDATE maintenance_journals SET phase='RECOVERED_FROM_BACKUP',status='FAILED',updated_at=? WHERE status='RUNNING'",(now,))
+            self.repository.execute("INSERT OR REPLACE INTO maintenance_journals VALUES(?,?,?,'FAILED',?, ?,?)",(journal,"RESTORE","FAILED",json.dumps({"rollback":str(rollback)}),now,now))
+            self.repository.execute("INSERT OR IGNORE INTO recovery_barriers VALUES(?,?,'ACTIVE',?,NULL,NULL)",(str(uuid.uuid5(uuid.NAMESPACE_URL,"restore-failure:"+journal)),"restauración interrumpida requiere reconciliación",now))
+            raise
 
     def _require_quiescent(self):
         if not self.repository.query_one("SELECT 1 FROM operational_pauses WHERE released_at IS NULL LIMIT 1"):raise ConflictError("backup/restore requiere pausa administrativa")

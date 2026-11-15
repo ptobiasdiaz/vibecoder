@@ -40,7 +40,7 @@ class Workers:
         if session and session["workspace_id"]:
             workspace=self.repo.query_one("SELECT path FROM workspaces WHERE id=?",(session["workspace_id"],))
             (Path(workspace["path"])/"generated.txt").write_text("generated\n")
-        plan={"tasks":[{"id":"implement","title":"Implement","description":"Implement feature","agent":"main","dependencies":[],"acceptance":["tests pass"]}]}
+        plan={"tasks":[{"id":"implement","title":"Implement","description":"Implement feature","agent":"implementer","dependencies":[],"acceptance":["tests pass"]}]}
         execution="execution-"+key.replace(":","-");now="2026-01-01T00:00:00+00:00"
         self.repo.execute("INSERT OR IGNORE INTO provider_executions VALUES(?,?, 'worker',?,'FINISHED','SUCCEEDED',NULL,NULL,?,'{}',?,?)",(execution,session_id,key,json.dumps({"text":json.dumps(plan)}),now,now))
         return {"id":execution,"outcome":"SUCCEEDED","result_json":json.dumps({"text":json.dumps(plan)})}
@@ -71,6 +71,37 @@ class M06WorkflowTests(unittest.TestCase):
         scheduler=PersistentScheduler(self.repo,self.service);scheduler.ensure_poll_jobs();self.assertIsNotNone(scheduler.cycle())
         now="2026-01-01T00:00:00+00:00";self.repo.execute("INSERT INTO operational_pauses VALUES('p','GLOBAL',NULL,'ALL','test','test',?,NULL)",(now,))
         self.assertIsNone(scheduler.cycle())
+    def test_plan_task_ids_are_canonicalized_without_losing_dependencies(self):
+        value={"tasks":[
+            {"id":"T1","title":"One","description":"First","agent":"main","dependencies":[],"acceptance":["ok"]},
+            {"id":"T2","title":"Two","description":"Second","agent":"main","dependencies":["T1"],"acceptance":["ok"]},
+        ]}
+        tasks=self.service._validate_plan(value)
+        self.assertEqual([task.logical_id for task in tasks],["t1","t2"])
+        self.assertEqual(tasks[1].dependencies,("t1",))
+    def test_explicit_plan_retry_reschedules_unpublished_existing_revision(self):
+        self.service.poll("project")
+        issue=self.repo.query_one("SELECT id FROM issue_workflows")
+        plan=self.service.generate_plan(issue["id"])
+        before=self.repo.query_one("SELECT count(*) n FROM scheduled_jobs WHERE kind='PUBLISH_PLAN'")["n"]
+        same=self.service.generate_plan(issue["id"])
+        after=self.repo.query_one("SELECT count(*) n FROM scheduled_jobs WHERE kind='PUBLISH_PLAN'")["n"]
+        self.assertEqual(same["id"],plan["id"])
+        self.assertEqual(after,before+1)
+    def test_plan_publication_marker_is_not_agent_input(self):
+        self.api.comments=lambda token,repository,number:[{"id":700,"user":{"id":7},"body":f"generated {__import__('vibecoder.workflows_v1',fromlist=['MARKER']).MARKER}opaque -->","created_at":"2026-01-01T00:00:01+00:00"}]
+        self.service.poll("project")
+        bodies=[row["body"] for row in self.repo.query_all("SELECT body FROM authorized_messages")]
+        self.assertEqual(bodies,["Build it"])
+    def test_partial_approval_is_recovered_without_second_approval_row(self):
+        self.service.poll("project")
+        issue=self.repo.query_one("SELECT id FROM issue_workflows")
+        plan=self.service.generate_plan(issue["id"])
+        self.repo.execute("INSERT INTO approvals VALUES(?,?,?,?,?,?)",("partial",plan["id"],plan["canonical_hash"],7,"old-event","2026-01-01T00:00:00+00:00"))
+        self.assertEqual(self.service.approve_plan(issue["id"],plan["canonical_hash"],7,"new-event"),1)
+        self.assertEqual(self.repo.query_one("SELECT count(*) n FROM approvals")["n"],1)
+        self.assertEqual(self.repo.query_one("SELECT status FROM issue_workflows WHERE id=?",(issue["id"],))["status"],"APPROVED")
+        self.assertGreater(self.repo.query_one("SELECT count(*) n FROM tasks")["n"],0)
     def test_task_creates_commit_and_pull_request_without_giving_pat_to_worker(self):
         result=self.service.poll("project");issue=self.repo.query_one("SELECT id FROM issue_workflows");plan=self.service.generate_plan(issue["id"]);self.service.approve_plan(issue["id"],plan["canonical_hash"],7,"approval")
         base=Path(self.temp.name)/"state"/"workspaces"/"project";base.mkdir(parents=True)
@@ -78,6 +109,27 @@ class M06WorkflowTests(unittest.TestCase):
         (base/"README.md").write_text("demo\n");subprocess.run(("git","-C",str(base),"add","README.md"),check=True);subprocess.run(("git","-C",str(base),"-c","user.name=test","-c","user.email=test@example.invalid","commit","-m","initial"),check=True,stdout=subprocess.DEVNULL)
         sha=subprocess.check_output(("git","-C",str(base),"rev-parse","HEAD"),text=True).strip();self.repo.execute("UPDATE projects SET remote_sha=? WHERE id='project'",(sha,));self.repo.execute("INSERT INTO workspaces VALUES('base','project','PROJECT',?,'main',?,'READY',?,?)",(str(base),sha,"2026-01-01T00:00:00+00:00","2026-01-01T00:00:00+00:00"))
         task=self.repo.query_one("SELECT id FROM tasks");run=self.service.execute_task(task["id"]);self.assertEqual(run["status"],"SUCCEEDED");self.assertEqual(self.repo.query_one("SELECT count(*) n FROM pull_requests")["n"],1)
+
+    def test_dependent_task_starts_from_verified_predecessor_result(self):
+        self.service.poll("project");issue=self.repo.query_one("SELECT id FROM issue_workflows");plan=self.service.generate_plan(issue["id"]);self.service.approve_plan(issue["id"],plan["canonical_hash"],7,"approval")
+        base=Path(self.temp.name)/"state"/"workspaces"/"project";base.mkdir(parents=True)
+        subprocess.run(("git","init","-b","main",str(base)),check=True,stdout=subprocess.DEVNULL)
+        (base/"README.md").write_text("demo\n");subprocess.run(("git","-C",str(base),"add","README.md"),check=True);subprocess.run(("git","-C",str(base),"-c","user.name=test","-c","user.email=test@example.invalid","commit","-m","initial"),check=True,stdout=subprocess.DEVNULL)
+        sha=subprocess.check_output(("git","-C",str(base),"rev-parse","HEAD"),text=True).strip();self.repo.execute("UPDATE projects SET remote_sha=? WHERE id='project'",(sha,));self.repo.execute("INSERT INTO workspaces VALUES('base','project','PROJECT',?,'main',?,'READY',?,?)",(str(base),sha,"2026-01-01T00:00:00+00:00","2026-01-01T00:00:00+00:00"))
+        first=self.repo.query_one("SELECT id,plan_revision_id,agent_id FROM tasks");run=self.service.execute_task(first["id"])
+        second="dependent";now="2026-01-01T00:00:00+00:00";self.repo.execute("INSERT INTO tasks VALUES(?,?,?,?,?,?,?,?,?)",(second,first["plan_revision_id"],"verify",first["agent_id"],"Verify predecessor","[]","PENDING",now,now));self.repo.execute("INSERT INTO task_dependencies VALUES(?,?)",(second,first["id"]))
+        with self.assertRaisesRegex(Exception,"sin producir cambios"):
+            self.service.execute_task(second)
+        dependent=self.repo.query_one("SELECT tr.base_sha,w.path,tr.status FROM task_runs tr JOIN workspaces w ON w.id=tr.workspace_id WHERE tr.task_id=?",(second,))
+        self.assertEqual(dependent["base_sha"],run["result_sha"])
+        self.assertEqual(self.repo.query_one("SELECT status FROM tasks WHERE id=?",(second,))["status"],"FAILED")
+        self.assertTrue((Path(dependent["path"])/"generated.txt").exists())
+
+        # A pre-fix installation could leave this exact terminal mismatch.
+        self.repo.execute("UPDATE tasks SET status='RUNNING' WHERE id=?",(second,));self.repo.execute("UPDATE task_runs SET status='RUNNING' WHERE task_id=?",(second,));self.repo.execute("INSERT INTO scheduled_jobs VALUES('stale','project','EXECUTE_TASK','task',?,'FAILED',20,?,1,'stale-key',?,?)",(second,now,now,now))
+        reconciled=self.service.reconcile_incomplete_tasks()
+        self.assertEqual(reconciled,{"changed":1,"blocked":0})
+        self.assertEqual(self.repo.query_one("SELECT status FROM tasks WHERE id=?",(second,))["status"],"FAILED")
     def test_backup_verify_requires_pause(self):
         now="2026-01-01T00:00:00+00:00";self.repo.execute("INSERT INTO operational_pauses VALUES('p','GLOBAL',NULL,'ALL','test','test',?,NULL)",(now,))
         service=MaintenanceService(self.repo,Path(self.temp.name)/"state");created=service.create_backup("test");verified=service.verify(created["id"])
@@ -86,5 +138,17 @@ class M06WorkflowTests(unittest.TestCase):
         restored=service.restore(created["id"],"test");self.assertTrue(restored["recovery_barrier"])
         self.assertIsNone(self.repo.query_one("SELECT 1 FROM audit_events WHERE id='after'"))
         self.assertIsNotNone(self.repo.query_one("SELECT 1 FROM recovery_barriers WHERE status='ACTIVE'"))
+
+    def test_backup_delegates_isolated_worker_storage_to_privileged_helper(self):
+        now="2026-01-01T00:00:00+00:00";self.repo.execute("INSERT INTO operational_pauses VALUES('p2','GLOBAL',NULL,'ALL','test','test',?,NULL)",(now,))
+        workers=Path(self.temp.name)/"state"/"workers";workers.mkdir(parents=True)
+        class Helper:
+            called=False
+            def snapshot_workers(inner,destination):
+                inner.called=True;destination.mkdir();(destination/"session.json").write_text("opaque")
+        helper=Helper();service=MaintenanceService(self.repo,Path(self.temp.name)/"state",privileged_helper=helper)
+        created=service.create_backup("test")
+        self.assertTrue(helper.called)
+        self.assertTrue(service.verify(created["id"])["valid"])
 
 if __name__ == "__main__": unittest.main()

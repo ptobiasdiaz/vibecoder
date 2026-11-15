@@ -216,7 +216,8 @@ class VibecoderDaemon:
         workflows = WorkflowService(self.repository, identity, workers)
         scheduler = PersistentScheduler(self.repository, workflows)
         scheduler.recover()
-        maintenance = MaintenanceService(self.repository, self.database_path.parent)
+        maintenance = MaintenanceService(self.repository, self.database_path.parent,
+                                         privileged_helper=launcher if self.worker_helper else None)
         self.service = ControlService(self.repository, LocalAuthorizer(self.admin_gid), identity,
                                       projects, plugins, workers, self.approvals, scheduler, maintenance)
         self.monitor = ConnectivityMonitor(identity)

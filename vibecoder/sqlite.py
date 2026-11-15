@@ -65,6 +65,7 @@ class SQLiteRepository:
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys=ON")
         self.connection.execute("PRAGMA busy_timeout=5000")
+        self._savepoint_index = 0
         if kind is DatabaseKind.NEW:
             try:
                 self.connection.executescript(SCHEMA_FILE.read_text(encoding="utf-8"))
@@ -83,6 +84,19 @@ class SQLiteRepository:
 
     @contextlib.contextmanager
     def transaction(self) -> Iterator[None]:
+        if self.connection.in_transaction:
+            self._savepoint_index += 1
+            name = f"vibecoder_nested_{self._savepoint_index}"
+            self.connection.execute(f"SAVEPOINT {name}")
+            try:
+                yield
+            except Exception:
+                self.connection.execute(f"ROLLBACK TO {name}")
+                self.connection.execute(f"RELEASE {name}")
+                raise
+            else:
+                self.connection.execute(f"RELEASE {name}")
+            return
         self.connection.execute("BEGIN IMMEDIATE")
         try:
             yield

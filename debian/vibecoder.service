@@ -1,6 +1,6 @@
 [Unit]
 Description=Vibecoder 0.0.1 orchestration daemon
-Documentation=file:/usr/share/doc/vibecoder/README.md.gz
+Documentation=file:/usr/share/doc/vibecoder/README.md
 After=local-fs.target network-online.target vibecoder-worker-launcher.service
 Wants=network-online.target
 Requires=vibecoder-worker-launcher.service
@@ -19,9 +19,7 @@ KillSignal=SIGTERM
 UMask=0027
 
 StateDirectory=vibecoder
-StateDirectoryMode=0750
-RuntimeDirectory=vibecoder
-RuntimeDirectoryMode=0750
+StateDirectoryMode=0711
 PrivateTmp=true
 NoNewPrivileges=true
 ProtectSystem=strict

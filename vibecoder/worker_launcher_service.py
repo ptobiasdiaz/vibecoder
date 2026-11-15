@@ -11,6 +11,7 @@ import threading
 import pwd
 import re
 import subprocess
+import shutil
 from pathlib import Path
 from typing import Any
 from .runtime_protocol import MAX_RUNTIME_MESSAGE, RUNTIME_PROTOCOL_VERSION, decode_runtime, encode_runtime
@@ -50,7 +51,7 @@ def validate_request(value: dict[str, Any]) -> tuple[RuntimeLaunchSpec, dict[str
     if workspace and (workspace.parent != Path("/var/lib/vibecoder/workspaces") or workspace.name.replace("-", "") == ""):
         raise ValueError("workspace fuera del área gestionada")
     timeout = float(args["timeout"])
-    if not 1 <= timeout <= 900: raise ValueError("timeout fuera de rango")
+    if not 1 <= timeout <= 1800: raise ValueError("timeout fuera de rango")
     request = args["runtime_request"]
     if not isinstance(request, dict) or request.get("worker_id") != worker_id: raise ValueError("runtime request no correlacionada")
     spec = RuntimeLaunchSpec(worker_id, str(args["unix_user"]), str(args["module"]), storage, workspace, timeout)
@@ -101,6 +102,70 @@ def restore_workspace(path: Path) -> None:
                 os.lchown(candidate,account.pw_uid,account.pw_gid);continue
             mode=stat.S_IMODE(candidate.stat().st_mode)&0o700;os.chown(candidate,account.pw_uid,account.pw_gid);os.chmod(candidate,mode or 0o600)
 
+def _maintenance_path(value: object, *, source: bool) -> Path:
+    path=Path(str(value))
+    root=Path("/var/lib/vibecoder/backups")
+    backup_component=(path.parent.parent==root and
+        (path.parent.name.startswith(".backup-") or path.parent.name.startswith("backup-")) and path.name=="workers")
+    internal_rollback=(source and path.parent==Path("/var/lib/vibecoder/workers") and path.name.startswith(".pre-restore-"))
+    if not backup_component and not internal_rollback:raise ValueError("ruta de mantenimiento fuera del área permitida")
+    if path.is_symlink() or (source and not path.is_dir()):raise ValueError("ruta de mantenimiento insegura")
+    return path
+
+def snapshot_workers(destination: Path) -> dict[str, Any]:
+    source=Path("/var/lib/vibecoder/workers")
+    if destination.exists() or destination.is_symlink():raise ValueError("destino de snapshot preexistente")
+    # Codex populates CODEX_HOME/tmp with reconstructible links to the managed
+    # executable. Dereferencing those links would inflate a backup by gigabytes;
+    # preserving them would make the archive depend on paths outside its root.
+    def ignore_ephemeral(_directory: str, names: list[str]) -> set[str]:
+        return {name for name in names if name=="tmp" or name.startswith((".pre-restore-",".restore-"))}
+    shutil.copytree(source,destination,symlinks=False,copy_function=shutil.copy2,
+                    ignore=ignore_ephemeral)
+    daemon=pwd.getpwnam("vibecoder")
+    for current,dirs,files in os.walk(destination,followlinks=False):
+        os.chown(current,daemon.pw_uid,daemon.pw_gid);os.chmod(current,0o700)
+        for name in files:
+            item=Path(current)/name
+            if item.is_symlink():raise ValueError("symlink persistente inseguro")
+            os.chown(item,daemon.pw_uid,daemon.pw_gid);os.chmod(item,0o600)
+    return {"snapshotted":True}
+
+def restore_workers(source: Path) -> dict[str, Any]:
+    destination=Path("/var/lib/vibecoder/workers")
+    staged=destination/(".restore-"+os.urandom(6).hex())
+    shutil.copytree(source,staged,symlinks=False,copy_function=shutil.copy2)
+    for worker in staged.iterdir():
+        if not worker.is_dir() or not _WORKER_ID.fullmatch(worker.name):raise ValueError("worker restaurado no válido")
+        account=pwd.getpwnam("vibecoder-w-"+worker.name.replace("-","")[:12])
+        for current,dirs,files in os.walk(worker,followlinks=False):
+            os.chown(current,account.pw_uid,account.pw_gid);os.chmod(current,0o700)
+            for name in files:
+                item=Path(current)/name
+                if item.is_symlink():raise ValueError("symlink restaurado inseguro")
+                os.chown(item,account.pw_uid,account.pw_gid);os.chmod(item,0o600)
+    old=destination/(".pre-restore-"+os.urandom(6).hex());old.mkdir(mode=0o700)
+    moved=[]
+    try:
+        # The workers root is a systemd ReadWritePaths mountpoint and cannot be
+        # renamed (EBUSY). Exchange its fixed-ID children instead.
+        for current in destination.iterdir():
+            if current in {staged,old}:continue
+            if current.name.startswith((".restore-",".pre-restore-")):continue
+            if not current.is_dir() or not _WORKER_ID.fullmatch(current.name):raise ValueError("storage worker no válido")
+            os.replace(current,old/current.name);moved.append(current.name)
+        for worker in list(staged.iterdir()):os.replace(worker,destination/worker.name)
+        staged.rmdir()
+    except Exception:
+        for current in list(destination.iterdir()):
+            if current in {staged,old} or current.name.startswith((".restore-",".pre-restore-")):continue
+            if current.is_dir() and _WORKER_ID.fullmatch(current.name):shutil.rmtree(current)
+        for name in moved:
+            previous=old/name
+            if previous.exists():os.replace(previous,destination/name)
+        shutil.rmtree(staged,ignore_errors=True);raise
+    return {"restored":True,"previous":str(old)}
+
 
 def _handle(connection: socket.socket, launcher: SystemdWorkerLauncher, allowed_uid: int) -> None:
     with connection:
@@ -113,6 +178,10 @@ def _handle(connection: socket.socket, launcher: SystemdWorkerLauncher, allowed_
             value = decode_runtime(raw)
             if value.get("operation")=="provision" and value.get("arguments")=={}:
                 result=provision_worker(value.get("worker_id"))
+            elif value.get("operation")=="snapshot_workers" and set(value.get("arguments",{}))=={"destination"}:
+                result=snapshot_workers(_maintenance_path(value["arguments"]["destination"],source=False))
+            elif value.get("operation")=="restore_workers" and set(value.get("arguments",{}))=={"source"}:
+                result=restore_workers(_maintenance_path(value["arguments"]["source"],source=True))
             else:
                 spec, request = validate_request(value)
                 if spec.workspace_path:prepare_workspace(spec.workspace_path,spec.unix_user)
@@ -124,9 +193,14 @@ def _handle(connection: socket.socket, launcher: SystemdWorkerLauncher, allowed_
         except Exception as exc:
             category = getattr(exc, "details", {}).get("category") if hasattr(exc, "details") else None
             print(f"worker launcher: {type(exc).__name__}: category={category}", file=sys.stderr, flush=True)
+            # Validation happens before a worker process is started, so this
+            # category is safe to treat as a confirmed failure rather than an
+            # execution with an unknown provider-side effect.
+            if isinstance(exc, (ValueError, PermissionError)):
+                category = "PRELAUNCH_REJECTED"
             response = {"version": RUNTIME_PROTOCOL_VERSION, "request_id": value.get("request_id"),
                 "worker_id": value.get("worker_id"), "ok": False,
-                "error": {"category": type(exc).__name__, "message": "lanzamiento rechazado o fallido"}}
+                "error": {"category": category or type(exc).__name__, "message": "lanzamiento rechazado o fallido"}}
         connection.sendall(encode_runtime(response))
 
 

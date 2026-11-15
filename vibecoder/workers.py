@@ -288,7 +288,12 @@ class WorkerService:
         if not session or session["status"] != "ACTIVE": raise ConflictError("sesión no utilizable")
         item = self.get(str(session["worker_id"])); plugin = self.plugins.resolve(f"{item['plugin_id']}@{item['plugin_version']}")
         if not 1 <= approval_timeout <= 840: raise ValueError("timeout de aprobación no válido")
-        spec = replace(self._spec(item, plugin, session.get("workspace_id"), str(session["project_id"])), timeout=approval_timeout + 60)
+        # Waiting for a human approval must not consume the execution budget.
+        # The launcher needs enough wall-clock time for both phases because it
+        # supervises the complete isolated runtime process.
+        execution_timeout = 600
+        spec = replace(self._spec(item, plugin, session.get("workspace_id"), str(session["project_id"])),
+                       timeout=approval_timeout + execution_timeout + 30)
         execution_id, now = str(uuid.uuid4()), utc_now()
         with self.repository.transaction():
             self.repository.execute("INSERT INTO provider_executions VALUES(?,?,?,?,'RUNNING',NULL,NULL,NULL,'{}','{}',?,?)",
@@ -298,11 +303,15 @@ class WorkerService:
             result = self.launcher.invoke(spec, runtime_request(spec, "execute", {"execution_id": execution_id,
                 "session_id": session_id, "session_reference": session["provider_reference"],
                 "instructions": instructions, "mode": mode, "approval_timeout": approval_timeout,
+                "timeout": execution_timeout,
                 "runtime_config": item["configuration"]}))
             outcome = ExecutionOutcome(str(result["outcome"]))
             category = result.get("error_category")
         except Exception as exc:
-            result, outcome, category = {}, ExecutionOutcome.UNKNOWN, type(exc).__name__
+            category = (getattr(exc, "details", {}) or {}).get("category", type(exc).__name__)
+            outcome = (ExecutionOutcome.FAILED if category == "PRELAUNCH_REJECTED"
+                       else ExecutionOutcome.UNKNOWN)
+            result = {}
         with self.repository.transaction():
             current = self.repository.query_one("SELECT state FROM provider_executions WHERE id=?", (execution_id,))
             if not current or current["state"] != "RUNNING":

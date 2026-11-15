@@ -12,13 +12,28 @@ class DebianPackageTests(unittest.TestCase):
         daemon=(ROOT/"debian/vibecoder.service").read_text()
         launcher=(ROOT/"debian/vibecoder-worker-launcher.service").read_text()
         self.assertIn("User=vibecoder",daemon);self.assertIn("ProtectSystem=strict",daemon)
+        self.assertIn("StateDirectoryMode=0711",daemon)
+        self.assertNotIn("RuntimeDirectory=vibecoder",daemon)
+        self.assertIn("Documentation=file:/usr/share/doc/vibecoder/README.md",daemon)
         self.assertIn("ExecStart=/usr/bin/vibecoder-worker-launcherd",launcher)
+        self.assertIn("ExecStartPre=/usr/bin/install -d -o vibecoder -g vibecoder-runtime -m 0711 /run/vibecoder",launcher)
+        self.assertIn("/var/lib/vibecoder/backups",launcher)
+        self.assertNotIn("RuntimeDirectory=vibecoder",launcher)
+        tmpfiles=(ROOT/"debian/vibecoder.tmpfiles").read_text()
+        self.assertIn("d /run/vibecoder 0711 vibecoder vibecoder-runtime -",tmpfiles)
+        self.assertIn("d /var/lib/vibecoder 0711 vibecoder vibecoder -",tmpfiles)
+        self.assertIn("d /var/lib/vibecoder/plugins 0755 vibecoder vibecoder -",tmpfiles)
+        postinst=(ROOT/"debian/postinst").read_text()
+        self.assertIn("-m 0755 /var/lib/vibecoder/plugins",postinst)
+        self.assertIn("systemctl restart vibecoder-worker-launcher.service",postinst)
+        self.assertLess(postinst.index("systemctl restart vibecoder-worker-launcher.service"),
+                        postinst.index("systemctl restart vibecoder.service"))
     def test_final_artifact_metadata_and_contents(self):
         artifact=ROOT/"builds/vibecoder_0.0.1_amd64.deb";self.assertTrue(artifact.is_file())
         fields=subprocess.check_output(("dpkg-deb","-f",str(artifact),"Package","Version","Architecture"),text=True).splitlines()
         self.assertEqual(fields,["Package: vibecoder","Version: 0.0.1","Architecture: amd64"])
         contents=subprocess.check_output(("dpkg-deb","-c",str(artifact)),text=True)
-        for path in ("./usr/bin/vibecoder","./usr/bin/vibecoderd","./usr/bin/vibecoder-worker-launcherd","./lib/systemd/system/vibecoder.service","./lib/systemd/system/vibecoder-worker-launcher.service","./usr/share/vibecoder/codex-artifacts.json","./usr/share/man/man1/vibecoder.1.gz","./usr/lib/python3/dist-packages/vibecoder/migrations/0001_schema.sql"):
+        for path in ("./usr/bin/vibecoder","./usr/bin/vibecoderd","./usr/bin/vibecoder-worker-launcherd","./usr/lib/systemd/system/vibecoder.service","./usr/lib/systemd/system/vibecoder-worker-launcher.service","./usr/share/vibecoder/codex-artifacts.json","./usr/share/man/man1/vibecoder.1.gz","./usr/lib/python3/dist-packages/vibecoder/migrations/0001_schema.sql"):
             self.assertIn(path,contents)
         self.assertNotIn("vibecoder-admin",contents);self.assertNotIn("supervisor.json",contents)
 

@@ -15,18 +15,21 @@ if ! getent passwd vibecoder >/dev/null; then
         --no-create-home --shell /usr/sbin/nologin --disabled-password vibecoder
 fi
 adduser vibecoder vibecoder-runtime >/dev/null 2>&1 || true
-install -d -o vibecoder -g vibecoder -m 0750 /var/lib/vibecoder
+install -d -o vibecoder -g vibecoder -m 0711 /var/lib/vibecoder
 install -d -o vibecoder -g vibecoder-runtime -m 0710 /var/lib/vibecoder/workspaces
 install -d -o vibecoder -g vibecoder-runtime -m 0710 /var/lib/vibecoder/workers
-install -d -o vibecoder -g vibecoder -m 0750 /var/lib/vibecoder/plugins
+install -d -o vibecoder -g vibecoder -m 0755 /var/lib/vibecoder/plugins
 install -d -o vibecoder -g vibecoder -m 0700 /var/lib/vibecoder/secrets
 install -d -o vibecoder -g vibecoder -m 0700 /var/lib/vibecoder/backups
-install -d -o vibecoder -g vibecoder-runtime -m 0750 /run/vibecoder
+install -d -o vibecoder -g vibecoder-runtime -m 0711 /run/vibecoder
 
 if command -v systemctl >/dev/null && [ -d /run/systemd/system ]; then
     systemctl daemon-reload
     systemctl enable vibecoder-worker-launcher.service vibecoder.service
-    systemctl start vibecoder-worker-launcher.service
+    # The privileged launcher imports package code.  Restart it on upgrades so
+    # it cannot keep enforcing an obsolete runtime protocol or policy while
+    # the daemon already runs the newly installed version.
+    systemctl restart vibecoder-worker-launcher.service
     systemctl restart vibecoder.service
 fi
 

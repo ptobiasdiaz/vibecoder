@@ -85,7 +85,7 @@ class SystemdWorkerLauncher:
 class PrivilegedWorkerLauncherClient:
     """Narrow client to the root launcher service; not an administrative API."""
     security_boundary = True
-    def __init__(self, socket_path: Path = Path("/run/vibecoder/worker-launch.sock"), timeout: float = 700):
+    def __init__(self, socket_path: Path = Path("/run/vibecoder/worker-launch.sock"), timeout: float = 1810):
         self.socket_path, self.timeout = socket_path, timeout
 
     def invoke(self, spec: RuntimeLaunchSpec, request: Mapping[str, Any]) -> dict[str, Any]:
@@ -117,6 +117,14 @@ class PrivilegedWorkerLauncherClient:
 
     def provision(self, worker_id: str) -> dict[str, Any]:
         payload={"version":RUNTIME_PROTOCOL_VERSION,"request_id":os.urandom(16).hex(),"worker_id":worker_id,"operation":"provision","arguments":{}}
+        return self._exchange(payload)
+
+    def snapshot_workers(self, destination: Path) -> dict[str, Any]:
+        payload={"version":RUNTIME_PROTOCOL_VERSION,"request_id":os.urandom(16).hex(),"worker_id":"maintenance","operation":"snapshot_workers","arguments":{"destination":str(destination)}}
+        return self._exchange(payload)
+
+    def restore_workers(self, source: Path) -> dict[str, Any]:
+        payload={"version":RUNTIME_PROTOCOL_VERSION,"request_id":os.urandom(16).hex(),"worker_id":"maintenance","operation":"restore_workers","arguments":{"source":str(source)}}
         return self._exchange(payload)
 
     def _exchange(self, payload: Mapping[str, Any]) -> dict[str, Any]:

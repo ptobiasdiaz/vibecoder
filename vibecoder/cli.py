@@ -319,6 +319,8 @@ def main(argv: list[str] | None = None) -> int:
             operation, arguments = _worker_request(args)
         elif args.command in {"workflow","job","maintenance","backup"}:
             operation, arguments = _generic_request(args.command, getattr(args, f"{args.command}_args"))
+            if operation in {"backup.create", "backup.restore"}:
+                client.timeout = max(client.timeout, 1810.0)
         result = client.request(operation, arguments)
         if operation == "worker.login" and result.get("status") == "RUNNING":
             operation_id = str(result["operation_id"]); worker_name = args.worker_args[0]

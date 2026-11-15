@@ -66,11 +66,11 @@ class PersistentScheduler:
     def reconcile(self, actor: str) -> dict[str, int]:
         # Reconciliation never guesses remote outcomes. It only releases jobs
         # whose corresponding durable operation has confirmed success.
-        remote=self.workflows.reconcile_unknown();changed=0
+        remote=self.workflows.reconcile_unknown();local=self.workflows.reconcile_incomplete_tasks();changed=int(local.get("changed",0))
         for row in self.repository.query_all("SELECT j.id FROM scheduled_jobs j JOIN external_operations o ON o.source_id=j.source_id WHERE j.state='UNKNOWN' AND o.status='SUCCEEDED'"):
             self.repository.execute("UPDATE scheduled_jobs SET state='COMPLETED',updated_at=? WHERE id=?",(utc_now(),row["id"]));changed+=1
         self.repository.execute("INSERT INTO audit_events VALUES(?,?,?,?,?,?,?,?)",(str(uuid.uuid4()),actor,"maintenance.reconcile","scheduler",None,"SUCCEEDED",f'{{"changed":{changed}}}',utc_now()))
-        return {"changed":changed,"remote_confirmed":int(remote.get("confirmed",0))}
+        return {"changed":changed,"remote_confirmed":int(remote.get("confirmed",0)),"blocked":int(local.get("blocked",0))}
 
     def _claim(self):
         now=utc_now(); expires=(datetime.now(timezone.utc)+timedelta(seconds=self.lease_seconds)).isoformat(); token=str(uuid.uuid4())

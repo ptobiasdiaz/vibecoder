@@ -1,6 +1,7 @@
 import unittest
+from pathlib import Path
 from vibecoder.runtime_protocol import encode_runtime
-from vibecoder.worker_launcher_service import receive_frame, validate_request
+from vibecoder.worker_launcher_service import _maintenance_path, receive_frame, validate_request
 
 
 class WorkerLauncherServiceTests(unittest.TestCase):
@@ -28,6 +29,14 @@ class WorkerLauncherServiceTests(unittest.TestCase):
                 result = self.value[self.offset:self.offset + min(maximum, 1)]
                 self.offset += len(result); return result
         self.assertEqual(receive_frame(FragmentedStream(frame)), frame)
+
+    def test_maintenance_helper_accepts_only_backup_worker_component(self):
+        accepted = Path("/var/lib/vibecoder/backups/.backup-test/workers")
+        self.assertEqual(_maintenance_path(accepted, source=False), accepted)
+        for rejected in (Path("/etc/workers"),
+                         Path("/var/lib/vibecoder/backups/.backup-test/secrets"),
+                         Path("/var/lib/vibecoder/workers")):
+            with self.assertRaises(ValueError): _maintenance_path(rejected, source=False)
 
 
 if __name__ == "__main__": unittest.main()

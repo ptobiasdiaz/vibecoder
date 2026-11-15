@@ -1,5 +1,12 @@
 # Backup y restauración
 
+> **Contrato vigente 0.0.1:** use `vibecoder pause`, `vibecoder backup create`,
+> `vibecoder backup verify ID` y `vibecoder backup restore ID`. Los storages de
+> workers se copian mediante el launcher privilegiado de política fija sin
+> hacerlos legibles por el daemon en operación normal. Todo restore activa una
+> barrera; `resume` nunca la elimina. El texto M05 inferior es evidencia
+> histórica de la línea retirada 0.4.0.
+
 M05.5/M05.5.1 verificaron el procedimiento con systemd detenido en Debian trixie,
 Debian sid y, de forma experimental, Ubuntu 24.04, incluidos propietarios, barrera
 y rollback de una sustitución interrumpida.

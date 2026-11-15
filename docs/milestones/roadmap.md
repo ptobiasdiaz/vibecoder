@@ -14,11 +14,13 @@ break and does not provide data, API, CLI, or package compatibility.
 | M06.6.2 | Codex runtime approvals and live mediation | Implemented and live validated on Debian Sid |
 | M06.7 | Provider-neutral Issues, plans, tasks, PRs and reviews | Implemented offline |
 | M06.8 | Supervisor integration, recovery and maintenance | Implemented offline |
-| M06.9 | Debian package 0.0.1 | Built and inspected; installation validation pending |
-| M06.10 | Opt-in Breakout live acceptance | Pending |
+| M06.9 | Debian package 0.0.1 | Implemented and validated |
+| M06.10 | Opt-in Breakout live acceptance | PR path completed; dependent-task rerun pending |
 
-The implementation/package phase is complete. M06 remains pending M06.10 live
-evidence for the end-to-end flow with the installed package.
+The installed package produced a real PR, processed a human review correction
+and observed a human merge without duplicating effects. Final closure still
+requires a fresh human-approved plan to repeat the dependent-task path with the
+correction discovered during this acceptance.
 
 M06.6.1 validó daemon, AF_UNIX, aislamiento systemd por UID, Codex 0.167.0,
 Device Code y continuidad real. GitHub live y la mediación humana de

@@ -9,6 +9,8 @@
   "runtime": {"kind": "python-module", "module": "vibecoder.codex_plugin_runtime"},
   "trusted_distribution": "vibecoder",
   "available": true,
+  "approval_policies": ["autonomous", "manual"],
+  "default_approval_policy": "autonomous",
   "diagnostic": "Requiere codex-cli 0.167.0, aislamiento systemd y autenticación propia",
   "requirements": {
     "compatible_codex_versions": ["0.167.0"],

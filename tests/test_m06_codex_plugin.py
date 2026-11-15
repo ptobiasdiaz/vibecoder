@@ -201,6 +201,7 @@ class CodexPluginTests(unittest.TestCase):
                                 executable_managers={"codex": Manager()})
         worker = service.add("codex", "codex-1", "test")
         self.assertEqual(worker["status"], "AUTHENTICATION_REQUIRED")
+        self.assertEqual(worker["approval_policy"], "autonomous")
         started = service.start_login("codex-1", "test", timeout=1)
         self.assertEqual(started["status"], "RUNNING")
         while True:

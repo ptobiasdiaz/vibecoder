@@ -39,7 +39,7 @@ class Workers:
         session=self.repo.query_one("SELECT workspace_id FROM provider_sessions WHERE id=?",(session_id,))
         if session and session["workspace_id"]:
             workspace=self.repo.query_one("SELECT path FROM workspaces WHERE id=?",(session["workspace_id"],))
-            path=Path(workspace["path"]);(path/"generated.txt").write_text("generated\n")
+            path=Path(workspace["path"]);(path/"generated.txt").write_text("corrected\n" if key.startswith("correction:") else "generated\n")
             if self.commit_changes:
                 subprocess.run(("git","-C",str(path),"add","generated.txt"),check=True)
                 subprocess.run(("git","-C",str(path),"-c","user.name=agent","-c","user.email=agent@example.invalid","commit","-m","provider commit"),check=True,stdout=subprocess.DEVNULL)
@@ -125,6 +125,19 @@ class M06WorkflowTests(unittest.TestCase):
         workspace=Path(self.repo.query_one("SELECT path FROM workspaces WHERE id=?",(run["workspace_id"],))["path"])
         parent=subprocess.check_output(("git","-C",str(workspace),"rev-parse",f"{run['result_sha']}^"),text=True).strip()
         self.assertEqual(parent,base_sha)
+
+    def test_review_correction_updates_persisted_pull_request_head(self):
+        self.service.poll("project"); issue=self.repo.query_one("SELECT id FROM issue_workflows"); plan=self.service.generate_plan(issue["id"]); self.service.approve_plan(issue["id"],plan["canonical_hash"],7,"approval")
+        base=Path(self.temp.name)/"state"/"workspaces"/"project";base.mkdir(parents=True)
+        subprocess.run(("git","init","-b","main",str(base)),check=True,stdout=subprocess.DEVNULL)
+        (base/"README.md").write_text("demo\n");subprocess.run(("git","-C",str(base),"add","README.md"),check=True);subprocess.run(("git","-C",str(base),"-c","user.name=test","-c","user.email=test@example.invalid","commit","-m","initial"),check=True,stdout=subprocess.DEVNULL)
+        sha=subprocess.check_output(("git","-C",str(base),"rev-parse","HEAD"),text=True).strip();self.repo.execute("UPDATE projects SET remote_sha=? WHERE id='project'",(sha,));self.repo.execute("INSERT INTO workspaces VALUES('base','project','PROJECT',?,'main',?,'READY',?,?)",(str(base),sha,"2026-01-01T00:00:00+00:00","2026-01-01T00:00:00+00:00"))
+        task=self.repo.query_one("SELECT id FROM tasks");run=self.service.execute_task(task["id"])
+        pr=self.repo.query_one("SELECT * FROM pull_requests");now="2026-01-01T00:00:01+00:00"
+        self.repo.execute("INSERT INTO review_events VALUES('review',?,'PR_COMMENT','remote-review',7,'adjust it',NULL,?)",(pr["id"],now))
+        correction=self.service.apply_correction("review")
+        self.assertNotEqual(correction["new_sha"],run["result_sha"])
+        self.assertEqual(self.repo.query_one("SELECT head_sha FROM pull_requests WHERE id=?",(pr["id"],))["head_sha"],correction["new_sha"])
 
     def test_dependent_task_starts_from_verified_predecessor_result(self):
         self.service.poll("project");issue=self.repo.query_one("SELECT id FROM issue_workflows");plan=self.service.generate_plan(issue["id"]);self.service.approve_plan(issue["id"],plan["canonical_hash"],7,"approval")

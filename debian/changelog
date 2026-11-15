@@ -5,6 +5,7 @@ vibecoder (0.0.1) unstable; urgency=medium
   * Add isolated plugin workers and Codex App Server integration.
   * Add authorized Issues-to-PR workflow and persistent scheduler.
   * Add coherent local backup, recovery barriers and Debian services.
+  * Add persistent autonomous/manual Codex action approval policies.
 
  -- Tobias Diaz <tobias.diaz@uclm.es>  Tue, 10 Nov 2026 18:00:00 +0100
 

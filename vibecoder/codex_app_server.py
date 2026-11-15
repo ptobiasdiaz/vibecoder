@@ -35,6 +35,7 @@ class CodexAppServer:
     """One isolated App Server process for one bounded operation."""
     def __init__(self, executable: Path, codex_home: Path, workspace: Path | None,
                  *, timeout: float = 60.0,
+                 approval_policy: str = "manual",
                  approval_handler: Callable[[str, dict[str, Any], str], CodexApprovalReply] | None = None):
         self.executable, self.codex_home, self.workspace = executable, codex_home, workspace
         self.timeout = timeout
@@ -42,6 +43,9 @@ class CodexAppServer:
         self._next_id = 1
         self._events: queue.Queue[str | None] = queue.Queue()
         self.approval_handler = approval_handler
+        if approval_policy not in {"manual", "autonomous"}:
+            raise ValueError("política de aprobación Codex no válida")
+        self.approval_policy = approval_policy
         self._approval_confirmations: list[str] = []
 
     def __enter__(self) -> "CodexAppServer":
@@ -56,7 +60,7 @@ class CodexAppServer:
         threading.Thread(target=self._read_lines, args=(self.process.stdout,), daemon=True).start()
         response = self.request("initialize", {"clientInfo": {
             "name": "vibecoder", "title": "vibecoder Codex worker", "version": "0.0.1"},
-            "capabilities": {"experimentalApi": True, "requiredHumanApproval": True}})
+            "capabilities": {"experimentalApi": True, "requiredHumanApproval": self.approval_policy == "manual"}})
         if not isinstance(response, dict):
             raise CodexProtocolError("respuesta initialize inválida")
         self.notify("initialized", {})
@@ -125,16 +129,20 @@ class CodexAppServer:
         self._write({"method": method, "params": params})
 
     def start_thread(self) -> str:
+        approval = "never" if self.approval_policy == "autonomous" else "on-request"
+        sandbox = "workspace-write" if self.approval_policy == "autonomous" else "read-only"
         result = self.request("thread/start", {"cwd": str(self.workspace) if self.workspace else None,
-            "approvalPolicy": "on-request", "approvalsReviewer": "user",
-            "sandbox": "read-only"})
+            "approvalPolicy": approval, "approvalsReviewer": "user", "sandbox": sandbox})
         thread = result.get("thread") if isinstance(result, dict) else None
         thread_id = thread.get("id") if isinstance(thread, dict) else None
         if not isinstance(thread_id, str) or not thread_id: raise CodexProtocolError("thread/start sin ID")
         return thread_id
 
     def resume_thread(self, thread_id: str) -> None:
-        result = self.request("thread/resume", {"threadId": thread_id})
+        approval = "never" if self.approval_policy == "autonomous" else "on-request"
+        sandbox = "workspace-write" if self.approval_policy == "autonomous" else "read-only"
+        result = self.request("thread/resume", {"threadId": thread_id,
+            "approvalPolicy": approval, "approvalsReviewer": "user", "sandbox": sandbox})
         thread = result.get("thread") if isinstance(result, dict) else None
         if not isinstance(thread, dict) or thread.get("id") != thread_id:
             raise CodexProtocolError("thread/resume no confirmó la sesión")
@@ -142,7 +150,13 @@ class CodexAppServer:
     def execute(self, instructions: str, thread_id: str | None = None) -> CodexTurnResult:
         if thread_id: self.resume_thread(thread_id)
         else: thread_id = self.start_thread()
+        approval = "never" if self.approval_policy == "autonomous" else "on-request"
+        sandbox_policy = ({"type": "workspaceWrite", "networkAccess": False}
+                          if self.approval_policy == "autonomous" else
+                          {"type": "readOnly", "networkAccess": False})
         started = self.request("turn/start", {"threadId": thread_id,
+            "approvalPolicy": approval, "approvalsReviewer": "user",
+            "sandboxPolicy": sandbox_policy,
             "input": [{"type": "text", "text": instructions}]})
         turn = started.get("turn") if isinstance(started, dict) else None
         turn_id = turn.get("id") if isinstance(turn, dict) and isinstance(turn.get("id"), str) else None

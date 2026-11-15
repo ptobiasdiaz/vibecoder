@@ -16,6 +16,8 @@ break and does not provide data, API, CLI, or package compatibility.
 | M06.8 | Supervisor integration, recovery and maintenance | Implemented offline |
 | M06.9 | Debian package 0.0.1 | Implemented and validated |
 | M06.10 | Opt-in Breakout live acceptance | Complete: package-to-PR, review, recovery and dependent DAG live validated |
+| M06.11 | Autonomous/manual Codex action policies | Complete: autonomous PR and manual regression live validated |
+| M06.12 | User tutorial and local 0.0.1 release | Complete: documented, tested, packaged and tagged locally |
 
 The installed package produced real PRs, processed a human review correction,
 observed a human merge and completed a fresh human-approved dependent DAG
@@ -25,3 +27,9 @@ M06.6.1 validó daemon, AF_UNIX, aislamiento systemd por UID, Codex 0.167.0,
 Device Code y continuidad real. GitHub live y la mediación humana de
 aprobaciones de ejecución Codex quedaron validadas en M06.6.2. Las aprobaciones
 de planes multiagente siguen perteneciendo a M06.7.
+# M06.11 / 0.0.1 closure
+
+M06.11 adds configurable autonomous/manual worker action policies while
+preserving human plan approval, human merge and systemd isolation. Telegram is
+explicitly deferred to the neutral approval-channel design for 0.0.2 in
+`docs/roadmap/telegram-approvals-0.0.2.md`.

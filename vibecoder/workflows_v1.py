@@ -295,6 +295,7 @@ class WorkflowService:
         self._external_status(op,"SUCCEEDED",sha);now=utc_now()
         if existing:self.repository.execute("UPDATE corrections SET status='SUCCEEDED',new_sha=?,updated_at=? WHERE id=?",(sha,now,existing["id"]))
         else:self.repository.execute("INSERT INTO corrections VALUES(?,?,?,?,?,?,?,?,?)",(str(uuid.uuid4()),row["pull_request_id"],review_id,"AUTHORIZED_REVIEW","SUCCEEDED",row["result_sha"],sha,now,now))
+        self.repository.execute("UPDATE pull_requests SET head_sha=?,updated_at=? WHERE id=?",(sha,now,row["pull_request_id"]))
         return self.repository.query_one("SELECT * FROM corrections WHERE source_review_id=?",(review_id,)) or {}
 
     def approve_plan(self, issue_id: str, digest: str, github_user_id: int, remote_event_id: str) -> int:

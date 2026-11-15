@@ -76,7 +76,7 @@ class ControlService:
         self.approvals = approvals
         self.scheduler, self.maintenance = scheduler, maintenance
         self.MUTATING_OPERATIONS = self.MUTATING_OPERATIONS | frozenset(
-            {"worker.add", "worker.enable", "worker.disable", "worker.login", "worker.login-status", "worker.login-cancel", "worker.logout", "worker.verify",
+            {"worker.add", "worker.set-policy", "worker.enable", "worker.disable", "worker.login", "worker.login-status", "worker.login-cancel", "worker.logout", "worker.verify",
              "approval.approve", "approval.deny", "workflow.poll", "maintenance.reconcile",
              "maintenance.clear-barrier", "backup.create", "backup.restore"})
         self._ensure_installation()
@@ -105,7 +105,9 @@ class ControlService:
         elif operation == "plugin.show":
             if set(arguments) != {"plugin"} or not isinstance(arguments.get("plugin"), str): raise ValueError("plugin.show requiere plugin")
         elif operation == "worker.add":
-            if set(arguments) != {"plugin", "name"} or not isinstance(arguments.get("plugin"), str) or (arguments["name"] is not None and not isinstance(arguments["name"], str)): raise ValueError("argumentos de worker.add no válidos")
+            if set(arguments) not in ({"plugin", "name"}, {"plugin", "name", "approval_policy"}) or not isinstance(arguments.get("plugin"), str) or (arguments["name"] is not None and not isinstance(arguments["name"], str)) or (arguments.get("approval_policy") is not None and not isinstance(arguments["approval_policy"], str)): raise ValueError("argumentos de worker.add no válidos")
+        elif operation == "worker.set-policy":
+            if set(arguments) != {"worker", "approval_policy"} or not all(isinstance(arguments.get(x), str) for x in ("worker", "approval_policy")): raise ValueError("worker.set-policy requiere worker y approval_policy")
         elif operation in {"worker.status", "worker.enable", "worker.disable", "worker.login", "worker.logout", "worker.verify"}:
             if set(arguments) != {"worker"} or not isinstance(arguments.get("worker"), str): raise ValueError(f"{operation} requiere worker")
         elif operation in {"worker.login-status", "worker.login-cancel"}:
@@ -163,7 +165,8 @@ class ControlService:
             if self.workers is None: raise ValueError("subsistema de workers no disponible")
             if operation == "worker.list": return {"workers": self.workers.list()}
             if operation == "worker.status": return self.workers.get(str(arguments["worker"]))
-            if operation == "worker.add": return self.workers.add(str(arguments["plugin"]), arguments["name"], peer.actor)
+            if operation == "worker.add": return self.workers.add(str(arguments["plugin"]), arguments["name"], peer.actor, approval_policy=arguments.get("approval_policy"))
+            if operation == "worker.set-policy": return self.workers.set_approval_policy(str(arguments["worker"]), str(arguments["approval_policy"]), peer.actor)
             if operation == "worker.login": return self.workers.start_login(str(arguments["worker"]), peer.actor)
             if operation == "worker.login-status": return self.workers.login_status(str(arguments["worker"]), str(arguments["operation_id"]), peer.actor)
             if operation == "worker.login-cancel": return self.workers.cancel_login(str(arguments["worker"]), str(arguments["operation_id"]), peer.actor)

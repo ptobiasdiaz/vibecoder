@@ -1,57 +1,50 @@
-# Backup y restauración
+# Backup y restauración en vibecoder 0.0.1
 
-> **Contrato vigente 0.0.1:** use `vibecoder pause`, `vibecoder backup create`,
-> `vibecoder backup verify ID` y `vibecoder backup restore ID`. Los storages de
-> workers se copian mediante el launcher privilegiado de política fija sin
-> hacerlos legibles por el daemon en operación normal. Todo restore activa una
-> barrera; `resume` nunca la elimina. El texto M05 inferior es evidencia
-> histórica de la línea retirada 0.4.0.
+El daemon crea backups coherentes de SQLite, secret store, configuración,
+workspaces y storages de workers. Los storages se copian mediante el launcher
+de política fija sin hacerlos legibles por el daemon durante la operación
+normal.
 
-M05.5/M05.5.1 verificaron el procedimiento con systemd detenido en Debian trixie,
-Debian sid y, de forma experimental, Ubuntu 24.04, incluidos propietarios, barrera
-y rollback de una sustitución interrumpida.
+Los backups contienen credenciales sin cifrar. Su directorio tiene permisos
+restrictivos, pero cualquier exportación debe cifrarse y custodiarse fuera de
+vibecoder.
 
-## Preparación y creación
+## Crear y verificar
 
-Detenga el servicio y establezca una pausa persistente antes del backup:
+Active una pausa persistente para impedir trabajo nuevo:
 
 ```bash
-sudo vibecoder-admin service pause --kind all --reason maintenance
-sudo systemctl stop vibecoder.service
-sudo vibecoder-admin backup create --offline
-sudo vibecoder-admin backup list
-sudo vibecoder-admin backup verify BACKUP_ID
+vibecoder pause
+vibecoder backup create
+vibecoder backup list
+vibecoder backup verify BACKUP_ID
+vibecoder resume
 ```
 
-`--offline` es una afirmación administrativa explícita; no se deduce de la ausencia de
-un PID. La operación rechaza jobs `RUNNING`, leases y ejecuciones de dominio activas.
+El manifiesto registra componentes, modos, tamaños y SHA-256, pero no valores
+de secretos. La operación rechaza ejecuciones y leases incompatibles.
 
-El formato 1 contiene `manifest.json` y `payload/`. El manifiesto registra versión,
-fecha, runtime, esquema, componentes, tamaños, modos y SHA-256. No contiene secretos.
-
-## Componentes
-
-- `/etc/vibecoder/supervisor.json` y `accounts.json`.
-- SQLite consistente mediante `sqlite3.Connection.backup`.
-- Secretos.
-- Directorios de cuentas/`CODEX_HOME`.
-- Workspaces Git completos.
-- Estado adicional.
-
-No incluye `/run/vibecoder`, journald, cachés, backups previos ni recovery.
-
-## Restauración
+## Restaurar
 
 ```bash
-sudo systemctl stop vibecoder.service
-sudo vibecoder-admin --yes backup restore BACKUP_ID --offline
-sudo vibecoder-admin maintenance status
-sudo vibecoder-admin doctor
+vibecoder pause
+vibecoder backup verify BACKUP_ID
+vibecoder backup restore BACKUP_ID
+vibecoder maintenance status
+vibecoder maintenance check
+vibecoder maintenance reconcile
 ```
 
-La restauración verifica antes de escribir, crea un backup pre-restore, usa staging y
-journal, y termina en `CONFIGURED` con pausa global. No inicie operaciones remotas
-hasta reconciliar GitHub/Codex y activar explícitamente.
+El restore usa staging y activa una barrera de recuperación. `resume` no la
+elimina. Después de comprobar SQLite, GitHub, workers y operaciones externas,
+libere únicamente la barrera identificada:
 
-Los backups no están cifrados. Manténgalos en almacenamiento local protegido; su
-exportación y cifrado con herramientas aprobadas son decisiones externas explícitas.
+```bash
+vibecoder maintenance clear-barrier BARRIER_ID
+vibecoder resume
+vibecoder doctor
+```
+
+Nunca edite SQLite ni elimine el directorio de recuperación para sortear una
+barrera. Una operación externa o inferencia `UNKNOWN` requiere evidencia y no
+se reintenta automáticamente.

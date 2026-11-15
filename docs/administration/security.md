@@ -1,5 +1,10 @@
 # Seguridad administrativa
 
+La autonomía de un worker no amplía sus privilegios Unix: siguen vigentes UID
+separado, `NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, filesystem
+asignado y ausencia de PAT, SQLite y socket administrativo. No existe un modo
+unrestricted.
+
 - Solo UID 0 puede mutar configuración, secretos o estado administrativo.
 - La identidad administrativa inicial es atributiva; no permite eludir UID 0 y no se
   deriva ciegamente de `SUDO_USER`.

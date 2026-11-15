@@ -1,0 +1,73 @@
+# Notas de versión — vibecoder 0.0.1
+
+Vibecoder 0.0.1 es la primera release de la arquitectura M06, incompatible con
+0.4.0. Coordina Issues autorizados, planes inmutables aprobados por personas,
+workers aislados, DAG de tareas, Git y Pull Requests con merge humano.
+
+## Funcionalidades
+
+- Daemon persistente y CLI por socket Unix autenticado con `SO_PEERCRED`.
+- Una identidad GitHub global protegida mediante Fine-grained PAT.
+- Registro de proyectos desde Git local sin modificar el checkout del usuario.
+- Autorizaciones GitHub por proyecto basadas en IDs numéricos.
+- Plugins neutrales y workers con credenciales, sesiones y UIDs aislados.
+- Codex CLI/App Server 0.167.0 con Device Code.
+- Políticas `autonomous` y `manual`; nunca existe modo unrestricted.
+- Planes versionados, aprobación humana exacta y tareas con dependencias.
+- Commits, ramas y PRs idempotentes; reviews y correcciones continuables.
+- Scheduler persistente, estados `UNKNOWN` conservadores y barreras.
+- Backup y restore con manifiesto, checksums y barrera posterior.
+- Paquete Debian amd64 con servicios systemd endurecidos.
+
+## Instalación y requisitos
+
+Plataforma soportada: Debian 13 trixie amd64. Debian sid amd64 es validación
+continua. Requiere systemd, Python 3.11+, Git, HTTPS, una cuenta GitHub con PAT
+fine-grained y una cuenta Codex compatible.
+
+```bash
+sudo apt install ./vibecoder_0.0.1_amd64.deb
+sudo usermod -aG vibecoder-admin "$USER"
+# volver a iniciar sesión
+vibecoder github login
+vibecoder worker add codex
+vibecoder worker codex-1 login
+```
+
+Consulte el [tutorial de instalación y primer Pull Request](tutorial.md).
+
+## Seguridad
+
+El daemon no ejecuta como root. Los workers usan UIDs y storages separados,
+sandbox Codex sin red y no reciben el PAT ni acceso a SQLite. El plan siempre
+requiere aprobación humana. `autonomous` elimina confirmaciones ordinarias
+dentro del sandbox, no el sandbox. Los merges son exclusivamente humanos.
+
+Los backups incluyen secretos sin cifrar; deben permanecer en almacenamiento
+protegido. Una ejecución o efecto externo incierto conserva `UNKNOWN` y no se
+repite sin reconciliación.
+
+## Limitaciones conocidas
+
+- Artefacto publicado únicamente para amd64.
+- Codex 0.167.0 es la versión live validada.
+- Debian sid es una fotografía validada, no una garantía frente a cambios
+  futuros de unstable.
+- No hay interfaz web, marketplace de plugins ni merge automático.
+- Cancelación y reconciliación dependen de capacidades realmente verificadas
+  del proveedor.
+- `lintian` conserva avisos no bloqueantes por llamadas explícitas a systemd y
+  ausencia de páginas man para los dos daemons.
+
+Telegram y el sistema neutral de canales de aprobación están diseñados para
+0.0.2 y no forman parte de esta versión.
+
+## Artefacto
+
+```text
+Package:      vibecoder
+Version:      0.0.1
+Architecture: amd64
+Size:         162772 bytes
+SHA-256:      b8ddc76b2202ecb42159cff0e69ad58209d2fd291fe59a1d8749f9aed45d4d57
+```

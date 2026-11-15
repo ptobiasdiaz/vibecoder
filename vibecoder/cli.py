@@ -117,6 +117,7 @@ def build_parser() -> argparse.ArgumentParser:
     worker = commands.add_parser("worker", help="administra workers")
     worker.add_argument("worker_args", nargs="+")
     worker.add_argument("--name")
+    worker.add_argument("--approval-policy", choices=("autonomous", "manual"))
     worker.add_argument("--long", action="store_true", dest="long_output")
     worker.add_argument("--json", action="store_true", dest="as_json")
     approval = commands.add_parser("approval", help="gestiona aprobaciones de ejecución")
@@ -233,7 +234,12 @@ def _plugin_request(args: argparse.Namespace) -> tuple[str, dict[str, Any]]:
 def _worker_request(args: argparse.Namespace) -> tuple[str, dict[str, Any]]:
     values = args.worker_args
     if values == ["list"]: return "worker.list", {}
-    if len(values) == 2 and values[0] == "add": return "worker.add", {"plugin": values[1], "name": args.name}
+    if len(values) == 2 and values[0] == "add": return "worker.add", {"plugin": values[1], "name": args.name, "approval_policy": args.approval_policy}
+    if len(values) == 2 and values[0] == "set":
+        if args.approval_policy is None: raise RuntimeError("worker set requiere --approval-policy")
+        return "worker.set-policy", {"worker": values[1], "approval_policy": args.approval_policy}
+    if len(values) == 2 and values[0] == "status":
+        return "worker.status", {"worker": values[1]}
     if len(values) == 2 and values[1] in {"status", "enable", "disable", "login", "logout", "verify"}:
         return f"worker.{values[1]}", {"worker": values[0]}
     raise RuntimeError("acción o argumentos de worker no válidos")
@@ -258,6 +264,7 @@ def _print_worker(args: argparse.Namespace, result: Mapping[str, Any]) -> None:
     for item in items:
         if args.long_output or args.worker_args != ["list"]:
             print(f"{item['name']}  {item['id']}  {item['plugin_id']}@{item['plugin_version']}  {item['status']}")
+            print(f"  Política de aprobación: {item.get('approval_policy', 'manual')}")
             if item.get("last_error"): print(f"  Diagnóstico: {item['last_error']}")
         else: print(f"{item['name']}  {item['status']}")
 

@@ -1,5 +1,10 @@
 # Plugin Codex de vibecoder 0.0.1
 
+Codex 0.167.0 admite dos políticas persistentes. `autonomous` aplica
+`approvalPolicy=never` y `workspaceWrite` sin red a cada thread y turno;
+`manual` aplica `on-request` y utiliza el broker durable. Nunca se usa
+`dangerFullAccess`.
+
 El adaptador Codex está fuera del núcleo. `vibecoderd` persiste intenciones y
 referencias opacas; `vibecoder.codex_plugin_runtime` es el único componente que
 interpreta threads, turns y `CODEX_HOME`.

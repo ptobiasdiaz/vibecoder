@@ -127,19 +127,26 @@ def _result(request: dict[str, Any]) -> dict[str, Any]:
         return {"provider_reference": None, "continuity": {"lazy_thread": True}}
     if operation == "continue_session":
         if not arguments.get("provider_reference"): return {"continued": False}
-        with CodexAppServer(executable, codex_home, _workspace(), timeout=20) as server:
+        with CodexAppServer(executable, codex_home, _workspace(), timeout=20,
+                            approval_policy=_approval_policy(arguments)) as server:
             server.resume_thread(str(arguments["provider_reference"]))
         return {"continued": True, "provider_reference": arguments["provider_reference"]}
     if operation == "execute":
         _code_mode_host(executable)
+        policy = _approval_policy(arguments)
         bridge = CodexApprovalBridge(str(arguments["session_id"]), str(arguments["execution_id"]),
-            timeout=float(arguments.get("approval_timeout", 300)))
+            timeout=float(arguments.get("approval_timeout", 300)), approval_policy=policy)
         try:
             with CodexAppServer(executable, codex_home, _workspace(), timeout=float(arguments.get("timeout", 600)),
-                                approval_handler=bridge) as server:
+                                approval_policy=policy, approval_handler=bridge) as server:
                 turn = server.execute(str(arguments["instructions"]), arguments.get("session_reference"))
         except (TimeoutError, EOFError, OSError, CodexProtocolError) as exc:
             return {"outcome": "UNKNOWN", "error_category": type(exc).__name__}
+        if bridge.residual_requests:
+            return {"outcome": "FAILED", "provider_session_reference": turn.thread_id,
+                    "provider_execution_reference": turn.turn_id,
+                    "structured_result": {"residual_approval_requests": bridge.residual_requests},
+                    "error_category": "AUTONOMOUS_APPROVAL_REQUEST"}
         mapping = {"completed": "SUCCEEDED", "failed": "FAILED", "interrupted": "CANCELLED"}
         outcome = mapping.get(turn.status, "UNKNOWN")
         category = None if outcome == "SUCCEEDED" else _classify(turn.error, turn.status)
@@ -159,9 +166,12 @@ class CodexApprovalBridge:
         "item/permissions/requestApproval": "PERMISSIONS"}
 
     def __init__(self, session_id: str, execution_id: str, *, timeout: float = 300,
-                 client: RuntimeApprovalClient | None = None):
+                 client: RuntimeApprovalClient | None = None, approval_policy: str = "manual"):
         self.session_id, self.execution_id, self.timeout = session_id, execution_id, timeout
         self.client = client or RuntimeApprovalClient()
+        if approval_policy not in {"manual", "autonomous"}: raise ValueError("política de aprobación no válida")
+        self.approval_policy = approval_policy
+        self.residual_requests: list[dict[str, Any]] = []
 
     def __call__(self, method: str, params: dict[str, Any], provider_ref: str) -> CodexApprovalReply:
         kind = self.METHODS.get(method)
@@ -174,6 +184,12 @@ class CodexApprovalBridge:
         summary = (f"Comando: {details.get('command')}" if kind == "COMMAND" else
             f"Cambio de archivos: {details.get('reason') or params['itemId']}" if kind == "FILE_CHANGE" else
             f"Permisos adicionales: {details.get('reason') or params['itemId']}")
+        if self.approval_policy == "autonomous":
+            self.residual_requests.append({"kind": kind, "provider_request_ref": provider_ref,
+                "item_id": params["itemId"], "reason": _sanitize(str(details.get("reason", "")))[:500]})
+            response = ({"decision": "decline"} if kind in {"COMMAND", "FILE_CHANGE"}
+                        else {"permissions": {"fileSystem": None, "network": None}, "scope": "turn"})
+            return CodexApprovalReply(response, "")
         try:
             approval = self.client.request("approval.register", {"session_id": self.session_id,
                 "execution_id": self.execution_id, "provider_request_ref": provider_ref, "kind": kind,
@@ -200,7 +216,14 @@ class CodexApprovalBridge:
         return CodexApprovalReply(response, str(approval["id"]))
 
     def confirm(self, approval_id: str) -> None:
+        if not approval_id: return
         self.client.request("approval.confirm", {"approval_id": approval_id, "delivered": True, "diagnostic": None})
+
+
+def _approval_policy(arguments: dict[str, Any]) -> str:
+    value = str(arguments.get("approval_policy", "manual"))
+    if value not in {"manual", "autonomous"}: raise ValueError("política de aprobación no válida")
+    return value
 
 
 def _workspace() -> Path | None:

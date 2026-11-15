@@ -9,7 +9,7 @@ user before Python loads provider code and applies:
 - `NoNewPrivileges=yes`
 - empty `CapabilityBoundingSet`
 - `ProtectSystem=strict`, `ProtectHome=yes`, `PrivateTmp=yes`
-- `RestrictSUIDSGID=yes`, `LockPersonality=yes`, `UMask=0077`
+- `LockPersonality=yes`, `UMask=0077`
 - `InaccessiblePaths` for global secrets, SQLite, control socket, all worker
   storage and all workspaces
 - a more specific `ReadWritePaths` only for that worker storage and the
@@ -21,8 +21,16 @@ UID and the administrative group. Storage and temp directories must be owned by
 that worker and have no group/other permissions.
 
 This provides a design boundary for filesystem, process identity and
-credentials. Network is intentionally not disabled because real providers need
-network access; provider-specific egress restriction is pending.
+credentials. Network is intentionally not disabled at the unit level because
+real providers need network access; Codex independently denies tool network in
+its sandbox policy.
+
+On systemd 262, `RestrictSUIDSGID=yes` makes bubblewrap fail before it can
+construct Codex's `workspace-write` sandbox. M06.11 therefore omits that one
+setting from transient worker units. `NoNewPrivileges` and the empty capability
+set still prevent setuid/setgid privilege gain, while retaining the inner
+sandbox enforces workspace and tool-network policy. The daemon and fixed
+launcher units keep their own hardening.
 
 ## Offline-test boundary
 

@@ -254,6 +254,8 @@ class LauncherSecurityContractTests(unittest.TestCase):
             self.assertIn("--property=NoNewPrivileges=yes", command)
             self.assertIn("--property=ProtectSystem=strict", command)
             self.assertIn("--property=CapabilityBoundingSet=", command)
+            self.assertNotIn("--property=RestrictSUIDSGID=yes", command)
+            self.assertIn("--property=CapabilityBoundingSet=", command)
             self.assertIn("--property=KillMode=control-group", command)
             self.assertIn("--property=SupplementaryGroups=vibecoder-runtime", command)
             self.assertIn("--property=RuntimeMaxSec=35", command)

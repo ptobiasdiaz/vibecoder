@@ -1,5 +1,14 @@
 # Validación E2E del paquete Debian 0.0.1
 
+## M06.11 — autonomía de Codex
+
+El Issue #9 y el PR #10 validaron `autonomous` con Codex 0.167.0 instalado:
+una tarea humana aprobada modificó Python y ejecutó cuatro tests sin ninguna
+aprobación de acción. La rama fue publicada por el núcleo, sin PAT en el
+worker y sin merge. Después, `manual` produjo una solicitud por acción real,
+decidida por CLI y auditada; la corrección actualizó la misma rama. El estado
+final de `codex-1` es `READY/autonomous`.
+
 La instalación limpia mediante APT arrancó en `STANDBY/OFFLINE`; tras GitHub y
 Codex pasó automáticamente a `READY/ONLINE`. El daemon usó `vibecoder` y cada
 worker un UID `vibecoder-w-*` independiente.

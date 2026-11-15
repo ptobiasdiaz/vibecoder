@@ -27,6 +27,8 @@ class RegisteredPlugin:
     diagnostic: str | None
     test_only: bool
     requirements: Mapping[str, Any]
+    approval_policies: frozenset[str]
+    default_approval_policy: str
 
     def public(self) -> dict[str, Any]:
         return ({"id": self.descriptor.plugin_id, "version": self.descriptor.version,
@@ -80,11 +82,18 @@ class PluginRegistry:
                 raise OperationError("sólo se admiten runtimes incluidos y confiables")
         descriptor = PluginDescriptor(plugin_id, version, provider, frozenset(platforms), auth,
                                       capabilities, {"descriptor_schema": DESCRIPTOR_VERSION})
+        policies = raw.get("approval_policies", ["manual"])
+        default_policy = raw.get("default_approval_policy", "manual")
+        if (not isinstance(policies, list) or not policies or
+                not all(x in {"autonomous", "manual"} for x in policies) or
+                default_policy not in policies):
+            raise OperationError("políticas de aprobación del plugin no válidas")
         return RegisteredPlugin(descriptor, runtime, str(raw.get("trusted_distribution", "")),
                                 bool(raw.get("available", runtime is not None)),
                                 raw.get("diagnostic") if isinstance(raw.get("diagnostic"), str) else None,
                                 bool(raw.get("test_only", False)),
-                                dict(raw.get("requirements", {})) if isinstance(raw.get("requirements", {}), dict) else {})
+                                dict(raw.get("requirements", {})) if isinstance(raw.get("requirements", {}), dict) else {},
+                                frozenset(policies), str(default_policy))
 
     def _persist_descriptors(self) -> None:
         now = utc_now()

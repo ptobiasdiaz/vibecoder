@@ -1,118 +1,124 @@
-# Instalación en Debian
+# Instalación Debian de vibecoder 0.0.1
 
 ## Compatibilidad
 
-Vibecoder requiere Python 3.11 o posterior, `httpx >= 0.26` y
-`pydantic >= 1.10.14`. El paquete usa dependencias de la distribución y no ejecuta
-`pip` en el host. Debian 13 trixie es la plataforma soportada; sid se usa para
-validación continua. Consulte la [matriz](compatibility.md).
+El artefacto de release es `vibecoder_0.0.1_amd64.deb`. Debian 13 trixie amd64
+es la plataforma soportada y Debian sid amd64 se valida continuamente sobre
+versiones concretas. Requiere systemd como PID 1 y Python 3.11 o posterior.
 
-Codex CLI/App Server no se instala automáticamente. Su ruta se declarará por cuenta.
-Git y certificados CA son dependencias obligatorias.
+El paquete declara `python3-httpx`, `python3`, `adduser`, `ca-certificates`,
+`git` y `systemd-sysv`; APT resuelve estas dependencias desde Debian. No usa
+`pip` sobre el Python del sistema.
+
+## Instalación y arranque
+
+```bash
+sudo apt install ./vibecoder_0.0.1_amd64.deb
+vibecoder --version
+sudo systemctl status vibecoder vibecoder-worker-launcher
+sudo vibecoder status
+sudo vibecoder doctor
+```
+
+El paquete crea el usuario no interactivo `vibecoder`, los grupos
+`vibecoder-admin` y `vibecoder-runtime`, habilita ambos servicios y crea los
+directorios persistentes. Sin GitHub ni workers, `STANDBY/OFFLINE` es el estado
+sano esperado.
+
+Autorice explícitamente cada administrador local:
+
+```bash
+sudo usermod -aG vibecoder-admin "$USER"
+# cierre la sesión y vuelva a entrar
+vibecoder status
+```
+
+No se añaden usuarios humanos automáticamente.
+
+## Primera configuración
+
+```bash
+vibecoder github login
+vibecoder worker add codex
+vibecoder worker codex-1 login
+vibecoder worker codex-1 verify
+cd ~/dev/proyecto
+vibecoder project add
+```
+
+`github login` recibe el Fine-grained PAT en un prompt oculto. Codex se instala
+mediante el gestor verificado, usa Device Code bajo el UID del worker y guarda
+sus credenciales en un `CODEX_HOME` privado. Los workers Codex nuevos usan
+`autonomous`; `--approval-policy manual` conserva decisiones por acción.
+
+## Directorios y permisos
+
+| Ruta | Acceso esperado | Finalidad |
+| --- | --- | --- |
+| `/var/lib/vibecoder` | daemon; traversal mínimo para workers | SQLite y estado |
+| `/var/lib/vibecoder/secrets` | `vibecoder`, `0700`; archivos `0600` | secretos globales |
+| `/var/lib/vibecoder/workers` | storage separado por UID | Codex homes y sesiones |
+| `/var/lib/vibecoder/workspaces` | asignación explícita | workspaces gestionados |
+| `/var/lib/vibecoder/backups` | acceso administrativo restringido | backups con secretos |
+| `/run/vibecoder/control.sock` | `vibecoder:vibecoder-admin`, `0660` | CLI administrativa |
+| `/run/vibecoder/runtime-approval.sock` | grupo runtime, `0660` | broker runtime |
+
+El daemon ejecuta como `vibecoder`. Cada worker productivo usa un UID distinto.
+El launcher root solo acepta operaciones y rutas de política fija; no es un
+shell privilegiado genérico.
+
+## systemd y logs
+
+```bash
+systemctl status vibecoder vibecoder-worker-launcher
+journalctl -u vibecoder -u vibecoder-worker-launcher --since today
+```
+
+Las unidades aplican filesystem restringido, `NoNewPrivileges` donde procede,
+capabilities vacías y sockets Unix. Las unidades transitorias Codex no usan
+`RestrictSUIDSGID` porque systemd 262 impediría el bubblewrap interno; mantienen
+UID independiente y el resto de la frontera documentada.
+
+## Backup, actualización y eliminación
+
+Antes de una actualización material, cree y verifique un backup:
+
+```bash
+vibecoder pause
+vibecoder backup create
+vibecoder backup list
+vibecoder backup verify ID
+vibecoder resume
+sudo apt install ./vibecoder_0.0.1_amd64.deb
+```
+
+Los upgrades y reinstalaciones conservan base, proyectos, secretos y workers.
+`apt remove vibecoder` conserva los datos. `apt purge vibecoder` elimina
+explícitamente `/var/lib/vibecoder`, sus secretos y las identidades de workers;
+cree y exporte un backup antes de usarlo.
+
+Un restore crea siempre una barrera:
+
+```bash
+vibecoder pause
+vibecoder backup restore ID
+vibecoder maintenance status
+vibecoder maintenance reconcile
+vibecoder maintenance clear-barrier ID_BARRERA
+vibecoder resume
+```
+
+`resume` no elimina barreras. Los backups contienen secretos sin cifrar.
 
 ## Construcción
 
 ```bash
 sudo apt install build-essential debhelper dh-python pybuild-plugin-pyproject \
-  python3-all python3-setuptools python3-httpx python3-pydantic fakeroot
+  python3-all python3-setuptools python3-httpx fakeroot
 dpkg-buildpackage -us -uc -b
-dpkg-deb --info ../vibecoder_0.4.0_all.deb
-dpkg-deb --contents ../vibecoder_0.4.0_all.deb
+dpkg-deb --info ../vibecoder_0.0.1_amd64.deb
+dpkg-deb --contents ../vibecoder_0.0.1_amd64.deb
 ```
 
-El artefacto se crea en el directorio padre. No incluye `.git`, `.venv`, tests, bases
-de datos, sesiones, logs, workspaces ni credenciales.
-
-La validación M05.1 produjo un paquete reproducible en Debian forky. Publique el
-resultado de `sha256sum` junto al artefacto; no lo inserte dentro del propio paquete,
-porque crearía una referencia circular.
-
-## Instalación y primer arranque
-
-```bash
-sudo apt install ./vibecoder_0.4.0_all.deb
-systemctl status vibecoder.service
-journalctl -u vibecoder.service
-```
-
-Debhelper instala y habilita la unidad. El primer arranque queda en `NOT_CONFIGURED`:
-el proceso permanece vivo, inicializa SQLite si procede y no consulta GitHub ni
-ejecuta Codex.
-
-```bash
-sudo -u vibecoder vibecoder-supervisor \
-  --config /etc/vibecoder/supervisor.json config-check
-sudo -u vibecoder vibecoder-supervisor \
-  --config /etc/vibecoder/supervisor.json status
-```
-
-M05.2 implementa la transición administrada a `READY`:
-
-```bash
-sudo vibecoder-admin doctor
-sudo vibecoder-admin setup validate
-sudo vibecoder-admin setup configure
-sudo vibecoder-admin setup activate
-```
-
-No cambie el JSON manualmente. M05.3 integra debconf para un identificador
-administrativo opcional y proporciona
-`vibecoder-admin setup init`. Debconf no almacena credenciales ni activa `READY`.
-Consulte [Primera configuración](first-run.md).
-
-## Usuario, directorios y permisos
-
-| Ruta | Propietario/modo | Finalidad |
-| --- | --- | --- |
-| `/etc/vibecoder` | `root:vibecoder`, `0750` | configuración |
-| JSON de configuración | `root:vibecoder`, `0640` | configuración no secreta |
-| `/var/lib/vibecoder` | `vibecoder:vibecoder`, `0750` | base y estado persistente |
-| `/var/lib/vibecoder/accounts` | `vibecoder:vibecoder`, `0750` | `CODEX_HOME` por cuenta |
-| `/var/lib/vibecoder/workspaces` | `vibecoder:vibecoder`, `0750` | workspaces aislados |
-| `/var/lib/vibecoder/secrets` | `vibecoder:vibecoder`, `0700` | secretos individuales `0600` |
-| `/run/vibecoder` | `vibecoder:vibecoder`, `0750` | estado efímero |
-
-No se crea un home interactivo ni se copia autenticación del instalador. Un archivo
-opcional `/etc/vibecoder/environment` debe ser `root:vibecoder` y `0640`; nunca se
-versiona ni se muestra en logs.
-
-## systemd y seguridad
-
-La unidad usa journald, reinicia ante fallo y entrega SIGTERM con 45 segundos para el
-cierre. Aplica `NoNewPrivileges`, `PrivateTmp`, `ProtectSystem=strict`, `ProtectHome`,
-capabilities vacías, `UMask=0027` y escritura limitada al estado y runtime.
-
-`ProtectHome=true` implica que Codex no debe depender de un home personal: el
-ejecutable debe estar en una ruta de sistema y cada `CODEX_HOME` bajo
-`/var/lib/vibecoder/accounts`. Esto no es aislamiento fuerte para código generado.
-
-## Actualización y eliminación
-
-```bash
-sudo apt install ./vibecoder_NUEVA_VERSION_all.deb
-sudo apt remove vibecoder
-sudo apt purge vibecoder
-```
-
-Las actualizaciones conservan conffiles y `/var/lib/vibecoder`; SQLite aplica
-migraciones incrementales. Tanto `remove` como `purge` preservan datos, sesiones,
-workspaces e identidad. Tras archivarlos, un administrador puede eliminarlos
-manualmente. Nunca se eliminan workspaces externos como efecto de la purga.
-
-Desde 0.4.0, los upgrades crean un backup pre-migración en
-`/var/lib/vibecoder/backups`. Para una ventana controlada use primero:
-
-```bash
-sudo vibecoder-admin service pause --kind all --reason upgrade
-sudo systemctl stop vibecoder.service
-sudo vibecoder-admin maintenance prepare-upgrade --offline
-```
-
-No instale un runtime anterior sobre un esquema más reciente. Consulte
-[Actualizaciones](../operations/upgrade.md).
-
-## Compatibilidad validada
-
-M05.5 validó Debian 13.7 trixie con systemd 257 y Python 3.13.5. M05.5.1 validó
-además un snapshot real de sid con systemd 262, Python 3.14.10 y kernel 7.3.3.
-Ubuntu se documenta por separado como plataforma [experimental](ubuntu.md).
+El paquete no contiene `.git`, `.venv`, bases runtime, tokens, workspaces ni
+credenciales. Consulte el [tutorial completo](../../doc/tutorial.md).

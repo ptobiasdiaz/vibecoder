@@ -72,6 +72,12 @@ class SQLiteRepository:
             except Exception:
                 self.connection.close()
                 raise
+        # M06.11 extends schema v1 in place.  Existing 0.0.1 workers must keep
+        # their former manual semantics; newly created workers explicitly set
+        # their policy in WorkerService.
+        with self.transaction():
+            self.connection.execute("CREATE TABLE IF NOT EXISTS worker_approval_policies (worker_id TEXT PRIMARY KEY REFERENCES workers(id) ON DELETE CASCADE, policy TEXT NOT NULL CHECK(policy IN ('autonomous','manual')), updated_at TEXT NOT NULL)")
+            self.connection.execute("INSERT OR IGNORE INTO worker_approval_policies(worker_id,policy,updated_at) SELECT id,'manual',updated_at FROM workers")
 
     @property
     def schema_version(self) -> int:

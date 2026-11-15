@@ -1,11 +1,11 @@
 # Compatibilidad de distribuciones
 
-- **Debian 13 trixie — soportada.** Instalación, systemd, administración,
-  actualización, backup y restore validados.
+- **Debian 13 trixie amd64 — soportada.** Es la plataforma objetivo de 0.0.1;
+  el paquete requiere Python 3.11+ y systemd.
 - **Debian sid — validación continua.** Validado el snapshot de 2026-11-09
   (`forky/sid`, systemd 262, Python 3.14). Unstable no implica garantía futura.
-- **Ubuntu 24.04 LTS — experimental.** 0.4.0 funciona con Pydantic 1.10/HTTPX
-  0.26, pero no existe compromiso de soporte ni upgrade desde 0.3.0.
+- **Ubuntu 24.04 LTS — histórico/experimental.** La validación corresponde a
+  0.4.0; el paquete 0.0.1 no se declara validado ni soportado allí.
 - **Ubuntu 26.04 LTS — futura.** No evaluada ni soportada.
 
 No mezcle repositorios entre distribuciones ni instale dependencias Python con

@@ -31,6 +31,9 @@ migrations, entry points, or configuration formats from vibecoder 0.4.0.
 - M06.7 permits automatic materialization of logical agents only from a
   validated, human-approved immutable plan. Provider workers never own the
   administrative records or GitHub effects.
+- M06.11 separates plan approval from worker action policy. `autonomous`
+  means Codex `never` approval inside `workspace-write`, never unrestricted;
+  residual approval requests are denied and cannot be auto-accepted.
 - The CLI must never open SQLite. Mutations belong to the daemon and use kernel peer credentials.
 - The GitHub PAT is daemon-owned secret material. Never include it in domain
   objects, diagnostics, audit details, exceptions, URLs, arguments or plugin contracts.

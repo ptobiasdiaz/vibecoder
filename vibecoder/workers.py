@@ -25,6 +25,7 @@ from .worker_runtime import (DirectProcessLauncher, RuntimeLaunchSpec,
                              WorkerProcessLauncher, runtime_request)
 
 _NAME = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}\Z")
+APPROVAL_POLICIES = frozenset({"autonomous", "manual"})
 _TRANSITIONS = {
     WorkerStatus.INSTALLING: {WorkerStatus.AUTHENTICATION_REQUIRED, WorkerStatus.VERIFYING, WorkerStatus.ERROR},
     WorkerStatus.AUTHENTICATION_REQUIRED: {WorkerStatus.VERIFYING, WorkerStatus.DISABLED, WorkerStatus.ERROR},
@@ -131,8 +132,14 @@ class WorkerService:
                     (json.dumps(sanitized), now, row["id"]))
 
     def add(self, plugin_query: str, name: str | None, actor: str,
-            *, configuration: Mapping[str, Any] | None = None) -> dict[str, Any]:
+            *, configuration: Mapping[str, Any] | None = None,
+            approval_policy: str | None = None) -> dict[str, Any]:
         plugin = self.plugins.resolve(plugin_query)
+        policy = approval_policy or plugin.default_approval_policy
+        if policy not in APPROVAL_POLICIES:
+            raise ValueError("política de aprobación no válida; use autonomous o manual")
+        if policy not in plugin.approval_policies:
+            raise ConflictError("el plugin no admite la política de aprobación solicitada")
         public = plugin.public()
         if not public["compatible"]: raise OperationError("plugin incompatible con esta plataforma")
         if not plugin.available or not plugin.runtime:
@@ -178,13 +185,15 @@ class WorkerService:
                 self.repository.execute("INSERT INTO workers VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (worker_id, worker_name, plugin.descriptor.plugin_id, plugin.descriptor.version,
                      "INSTALLING", json.dumps(config), str(identity.storage_path), 1, 0, None, None, now, now))
+                self.repository.execute("INSERT INTO worker_approval_policies VALUES(?,?,?)",
+                    (worker_id, policy, now))
                 self.repository.execute("INSERT INTO worker_runtime_identities VALUES(?,?,?,?)",
                     (worker_id, identity.unix_user, identity.isolation_kind, now))
                 self.repository.execute("UPDATE worker_registration_operations SET worker_id=?,phase='PROBING',updated_at=? WHERE id=?", (worker_id, now, op_id))
             self._transition(worker_id, WorkerStatus.VERIFYING)
             result = self.probe(worker_id, actor)
             self.repository.execute("UPDATE worker_registration_operations SET phase='COMPLETED',status='SUCCEEDED',updated_at=? WHERE id=?", (utc_now(), op_id))
-            self._audit(actor, "worker.add", worker_id, "SUCCEEDED", {"plugin": plugin.descriptor.plugin_id, "name": worker_name})
+            self._audit(actor, "worker.add", worker_id, "SUCCEEDED", {"plugin": plugin.descriptor.plugin_id, "name": worker_name, "approval_policy": policy})
             return {**result, "changed": True}
         except Exception as exc:
             self.repository.execute("UPDATE worker_registration_operations SET status='FAILED',error_category=?,updated_at=? WHERE id=?", (type(exc).__name__, utc_now(), op_id))
@@ -193,7 +202,7 @@ class WorkerService:
             raise
 
     def list(self) -> list[dict[str, Any]]:
-        rows = self.repository.query_all("SELECT w.*,i.unix_user,i.isolation_kind FROM workers w JOIN worker_runtime_identities i ON i.worker_id=w.id ORDER BY w.name COLLATE NOCASE")
+        rows = self.repository.query_all("SELECT w.*,i.unix_user,i.isolation_kind,COALESCE(p.policy,'manual') AS approval_policy FROM workers w JOIN worker_runtime_identities i ON i.worker_id=w.id LEFT JOIN worker_approval_policies p ON p.worker_id=w.id ORDER BY w.name COLLATE NOCASE")
         return [self._public(x) for x in rows]
 
     def get(self, query: str) -> dict[str, Any]:
@@ -213,6 +222,25 @@ class WorkerService:
         result = self.probe(item["id"], actor)
         self._audit(actor, "worker.enable", item["id"], "SUCCEEDED", {"status": result["status"]})
         return {**result, "changed": True}
+
+    def set_approval_policy(self, query: str, policy: str, actor: str) -> dict[str, Any]:
+        if policy not in APPROVAL_POLICIES:
+            raise ValueError("política de aprobación no válida; use autonomous o manual")
+        item = self.get(query)
+        plugin = self.plugins.resolve(f"{item['plugin_id']}@{item['plugin_version']}")
+        if policy not in plugin.approval_policies:
+            raise ConflictError("el plugin no admite la política de aprobación solicitada")
+        if int(item["active_executions"]):
+            raise ConflictError("no se puede cambiar la política durante una ejecución activa")
+        previous = str(item["approval_policy"])
+        if previous == policy:
+            return {**item, "changed": False}
+        now = utc_now()
+        self.repository.execute("INSERT INTO worker_approval_policies(worker_id,policy,updated_at) VALUES(?,?,?) ON CONFLICT(worker_id) DO UPDATE SET policy=excluded.policy,updated_at=excluded.updated_at",
+            (item["id"], policy, now))
+        self._audit(actor, "worker.approval-policy.set", item["id"], "SUCCEEDED",
+                    {"previous": previous, "current": policy})
+        return {**self.get(item["id"]), "changed": True}
 
     def probe(self, query: str, actor: str = "daemon") -> dict[str, Any]:
         item = self.get(query); plugin = self.plugins.resolve(f"{item['plugin_id']}@{item['plugin_version']}")
@@ -260,7 +288,7 @@ class WorkerService:
              None, "CREATING", "{}", now, now))
         try:
             result = self.launcher.invoke(spec, runtime_request(spec, "create_session", {"session_id": session_id, "context_hash": context_hash,
-                "runtime_config": item["configuration"]}))
+                "approval_policy": item["approval_policy"], "runtime_config": item["configuration"]}))
             self.repository.execute("UPDATE provider_sessions SET provider_reference=?,status='ACTIVE',continuity_json=?,updated_at=? WHERE id=?",
                 (result.get("provider_reference"), json.dumps(result.get("continuity", {})), utc_now(), session_id))
         except OperationError:
@@ -275,7 +303,8 @@ class WorkerService:
             raise ConflictError("continuación de sesión no soportada")
         spec = replace(self._spec(item, plugin, session.get("workspace_id"), str(session["project_id"])), timeout=900)
         result = self.launcher.invoke(spec, runtime_request(spec, "continue_session",
-            {"provider_reference": session["provider_reference"], "runtime_config": item["configuration"]}))
+            {"provider_reference": session["provider_reference"], "approval_policy": item["approval_policy"],
+             "runtime_config": item["configuration"]}))
         self.repository.execute("UPDATE provider_sessions SET continuity_json=?,updated_at=? WHERE id=?",
             (json.dumps({"continued": bool(result.get("continued"))}), utc_now(), session_id))
         return self.repository.query_one("SELECT * FROM provider_sessions WHERE id=?", (session_id,)) or {}
@@ -303,6 +332,7 @@ class WorkerService:
             result = self.launcher.invoke(spec, runtime_request(spec, "execute", {"execution_id": execution_id,
                 "session_id": session_id, "session_reference": session["provider_reference"],
                 "instructions": instructions, "mode": mode, "approval_timeout": approval_timeout,
+                "approval_policy": item["approval_policy"],
                 "timeout": execution_timeout,
                 "runtime_config": item["configuration"]}))
             outcome = ExecutionOutcome(str(result["outcome"]))

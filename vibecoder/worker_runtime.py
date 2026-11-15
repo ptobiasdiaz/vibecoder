@@ -62,7 +62,7 @@ class SystemdWorkerLauncher:
         command = [self.executable, "--quiet", "--wait", "--pipe", "--collect", "--service-type=exec",
             f"--uid={spec.unix_user}", f"--unit=vibecoder-worker-{spec.worker_id[:12]}-{os.urandom(4).hex()}",
             "--property=NoNewPrivileges=yes", "--property=PrivateTmp=yes", "--property=ProtectSystem=strict",
-            "--property=ProtectHome=yes", "--property=RestrictSUIDSGID=yes", "--property=LockPersonality=yes",
+            "--property=ProtectHome=yes", "--property=LockPersonality=yes",
             "--property=CapabilityBoundingSet=", "--property=UMask=0077", "--property=KillMode=control-group",
             "--property=SupplementaryGroups=vibecoder-runtime",
             f"--property=RuntimeMaxSec={math.ceil(spec.timeout) + 5}",

@@ -4,4 +4,3 @@ var/lib/vibecoder/workers
 var/lib/vibecoder/plugins
 var/lib/vibecoder/secrets
 var/lib/vibecoder/backups
-run/vibecoder

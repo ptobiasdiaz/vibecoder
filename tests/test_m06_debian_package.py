@@ -36,5 +36,6 @@ class DebianPackageTests(unittest.TestCase):
         for path in ("./usr/bin/vibecoder","./usr/bin/vibecoderd","./usr/bin/vibecoder-worker-launcherd","./usr/lib/systemd/system/vibecoder.service","./usr/lib/systemd/system/vibecoder-worker-launcher.service","./usr/share/vibecoder/codex-artifacts.json","./usr/share/man/man1/vibecoder.1.gz","./usr/lib/python3/dist-packages/vibecoder/migrations/0001_schema.sql"):
             self.assertIn(path,contents)
         self.assertNotIn("vibecoder-admin",contents);self.assertNotIn("supervisor.json",contents)
+        self.assertNotIn("./run/vibecoder/",contents)
 
 if __name__=="__main__":unittest.main()

@@ -25,9 +25,15 @@ usuarios de servicio; una reinstalación limpia volvió a `STANDBY/OFFLINE` y el
 backup recuperó el estado bajo barrera. Un grupo administrativo con miembros
 humanos se conserva de forma deliberadamente conservadora.
 
+## DAG dependiente validado
+
+El Issue #5 materializó exactamente A -> B. A produjo
+`1a2d0d5b0ef0bd6995d4d4e62939f5a29de41e8e`; B comenzó exactamente en ese
+SHA y produjo `82f313418ce920842f23c355668a90027bd6965b`, con A como padre directo.
+Las dos pruebas pasaron y se publicaron los PR #6 y #7 sin merge automático.
+Polling y reinicio no crearon duplicados.
+
 Limitaciones: los backups contienen secretos sin cifrado propio; los binarios
-gestionados aumentan su tamaño; una ejecución histórica `UNKNOWN` permanece
-bloqueada y nunca fue reintentada. La corrección del workspace de una tarea
-dependiente pasó la regresión offline, pero su repetición live requiere un plan
-nuevo y aprobación humana.
+gestionados aumentan su tamaño; las ejecuciones históricas `UNKNOWN` permanecen
+bloqueadas y nunca se reintentan ciegamente.
 

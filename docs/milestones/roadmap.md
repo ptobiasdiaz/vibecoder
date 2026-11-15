@@ -15,12 +15,11 @@ break and does not provide data, API, CLI, or package compatibility.
 | M06.7 | Provider-neutral Issues, plans, tasks, PRs and reviews | Implemented offline |
 | M06.8 | Supervisor integration, recovery and maintenance | Implemented offline |
 | M06.9 | Debian package 0.0.1 | Implemented and validated |
-| M06.10 | Opt-in Breakout live acceptance | PR path completed; dependent-task rerun pending |
+| M06.10 | Opt-in Breakout live acceptance | Complete: package-to-PR, review, recovery and dependent DAG live validated |
 
-The installed package produced a real PR, processed a human review correction
-and observed a human merge without duplicating effects. Final closure still
-requires a fresh human-approved plan to repeat the dependent-task path with the
-correction discovered during this acceptance.
+The installed package produced real PRs, processed a human review correction,
+observed a human merge and completed a fresh human-approved dependent DAG
+without duplicating effects.
 
 M06.6.1 validó daemon, AF_UNIX, aislamiento systemd por UID, Codex 0.167.0,
 Device Code y continuidad real. GitHub live y la mediación humana de

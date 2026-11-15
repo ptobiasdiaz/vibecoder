@@ -28,7 +28,7 @@ class API:
     def branch_sha(self,*a,**kw): return None
 
 class Workers:
-    def __init__(self, repo): self.repo=repo
+    def __init__(self, repo): self.repo=repo;self.commit_changes=False
     def list(self): return [{"id":"worker","name":"fake-1","status":"READY","active_executions":0,"concurrency_limit":1}]
     def create_session(self,project_id,agent_id,purpose,context_hash,worker_query,workspace_id=None):
         now="2026-01-01T00:00:00+00:00";sid="session-"+purpose.lower()
@@ -39,7 +39,10 @@ class Workers:
         session=self.repo.query_one("SELECT workspace_id FROM provider_sessions WHERE id=?",(session_id,))
         if session and session["workspace_id"]:
             workspace=self.repo.query_one("SELECT path FROM workspaces WHERE id=?",(session["workspace_id"],))
-            (Path(workspace["path"])/"generated.txt").write_text("generated\n")
+            path=Path(workspace["path"]);(path/"generated.txt").write_text("generated\n")
+            if self.commit_changes:
+                subprocess.run(("git","-C",str(path),"add","generated.txt"),check=True)
+                subprocess.run(("git","-C",str(path),"-c","user.name=agent","-c","user.email=agent@example.invalid","commit","-m","provider commit"),check=True,stdout=subprocess.DEVNULL)
         plan={"tasks":[{"id":"implement","title":"Implement","description":"Implement feature","agent":"implementer","dependencies":[],"acceptance":["tests pass"]}]}
         execution="execution-"+key.replace(":","-");now="2026-01-01T00:00:00+00:00"
         self.repo.execute("INSERT OR IGNORE INTO provider_executions VALUES(?,?, 'worker',?,'FINISHED','SUCCEEDED',NULL,NULL,?,'{}',?,?)",(execution,session_id,key,json.dumps({"text":json.dumps(plan)}),now,now))
@@ -109,6 +112,19 @@ class M06WorkflowTests(unittest.TestCase):
         (base/"README.md").write_text("demo\n");subprocess.run(("git","-C",str(base),"add","README.md"),check=True);subprocess.run(("git","-C",str(base),"-c","user.name=test","-c","user.email=test@example.invalid","commit","-m","initial"),check=True,stdout=subprocess.DEVNULL)
         sha=subprocess.check_output(("git","-C",str(base),"rev-parse","HEAD"),text=True).strip();self.repo.execute("UPDATE projects SET remote_sha=? WHERE id='project'",(sha,));self.repo.execute("INSERT INTO workspaces VALUES('base','project','PROJECT',?,'main',?,'READY',?,?)",(str(base),sha,"2026-01-01T00:00:00+00:00","2026-01-01T00:00:00+00:00"))
         task=self.repo.query_one("SELECT id FROM tasks");run=self.service.execute_task(task["id"]);self.assertEqual(run["status"],"SUCCEEDED");self.assertEqual(self.repo.query_one("SELECT count(*) n FROM pull_requests")["n"],1)
+
+    def test_task_accepts_clean_provider_commit_descended_from_verified_base(self):
+        self.service.poll("project");issue=self.repo.query_one("SELECT id FROM issue_workflows");plan=self.service.generate_plan(issue["id"]);self.service.approve_plan(issue["id"],plan["canonical_hash"],7,"approval")
+        base=Path(self.temp.name)/"state"/"workspaces"/"project";base.mkdir(parents=True)
+        subprocess.run(("git","init","-b","main",str(base)),check=True,stdout=subprocess.DEVNULL)
+        (base/"README.md").write_text("demo\n");subprocess.run(("git","-C",str(base),"add","README.md"),check=True);subprocess.run(("git","-C",str(base),"-c","user.name=test","-c","user.email=test@example.invalid","commit","-m","initial"),check=True,stdout=subprocess.DEVNULL)
+        base_sha=subprocess.check_output(("git","-C",str(base),"rev-parse","HEAD"),text=True).strip();self.repo.execute("UPDATE projects SET remote_sha=? WHERE id='project'",(base_sha,));self.repo.execute("INSERT INTO workspaces VALUES('base','project','PROJECT',?,'main',?,'READY',?,?)",(str(base),base_sha,"2026-01-01T00:00:00+00:00","2026-01-01T00:00:00+00:00"))
+        self.service.workers.commit_changes=True
+        task=self.repo.query_one("SELECT id FROM tasks");run=self.service.execute_task(task["id"])
+        self.assertEqual(run["status"],"SUCCEEDED");self.assertNotEqual(run["result_sha"],base_sha)
+        workspace=Path(self.repo.query_one("SELECT path FROM workspaces WHERE id=?",(run["workspace_id"],))["path"])
+        parent=subprocess.check_output(("git","-C",str(workspace),"rev-parse",f"{run['result_sha']}^"),text=True).strip()
+        self.assertEqual(parent,base_sha)
 
     def test_dependent_task_starts_from_verified_predecessor_result(self):
         self.service.poll("project");issue=self.repo.query_one("SELECT id FROM issue_workflows");plan=self.service.generate_plan(issue["id"]);self.service.approve_plan(issue["id"],plan["canonical_hash"],7,"approval")

@@ -252,10 +252,21 @@ class WorkflowService:
         if execution.get("outcome")!="SUCCEEDED":
             self.repository.execute("UPDATE task_runs SET status='FAILED',updated_at=? WHERE id=?",(utc_now(),run_id));self.repository.execute("UPDATE tasks SET status='FAILED',updated_at=? WHERE id=?",(utc_now(),task_id));raise OperationError("la ejecución de tarea falló")
         status=self._git(destination,"status","--porcelain=v1","--untracked-files=all").strip()
-        if not status:
+        head=self._git(destination,"rev-parse","HEAD").strip()
+        if status:
+            self._git(destination,"add","--all",":/");self._git(destination,"-c","user.name=vibecoder","-c","user.email=vibecoder@localhost","-c","core.hooksPath=/dev/null","commit","--no-gpg-sign","--no-verify","-m",f"feat: {task['logical_id']}")
+            sha=self._git(destination,"rev-parse","HEAD").strip()
+        elif head != start_sha:
+            # A provider may commit its work as part of the approved task.  A
+            # clean tree is valid only when HEAD is demonstrably descended
+            # from the immutable base selected by the daemon.
+            ancestry=subprocess.run(("git","-C",str(destination),"merge-base","--is-ancestor",start_sha,head),stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=30,check=False,shell=False,env={"PATH":"/usr/bin:/bin","LANG":"C","GIT_CONFIG_NOSYSTEM":"1","GIT_CONFIG_GLOBAL":"/dev/null"})
+            if ancestry.returncode:
+                failed=utc_now();self.repository.execute("UPDATE task_runs SET status='FAILED',updated_at=? WHERE id=?",(failed,run_id));self.repository.execute("UPDATE tasks SET status='FAILED',updated_at=? WHERE id=?",(failed,task_id));raise OperationError("el commit producido no desciende de la base verificada")
+            sha=head
+        else:
             failed=utc_now();self.repository.execute("UPDATE task_runs SET status='FAILED',updated_at=? WHERE id=?",(failed,run_id));self.repository.execute("UPDATE tasks SET status='FAILED',updated_at=? WHERE id=?",(failed,task_id));raise OperationError("la tarea finalizó sin producir cambios")
-        self._git(destination,"add","--all",":/");self._git(destination,"-c","user.name=vibecoder","-c","user.email=vibecoder@localhost","-c","core.hooksPath=/dev/null","commit","--no-gpg-sign","--no-verify","-m",f"feat: {task['logical_id']}")
-        sha=self._git(destination,"rev-parse","HEAD").strip();token,_=self.identity.credential_for_internal_use();push_op=self._external("GIT_PUSH","task",task_id,f"push:{task_id}:{sha}",sha)
+        token,_=self.identity.credential_for_internal_use();push_op=self._external("GIT_PUSH","task",task_id,f"push:{task_id}:{sha}",sha)
         try:self._push(destination,branch,token)
         except Exception:self._external_status(push_op,"UNKNOWN");self._barrier(f"push incierto {push_op}");raise
         self._external_status(push_op,"SUCCEEDED",sha);pr_op=self._external("GITHUB_PULL_REQUEST","task",task_id,f"pr:{task_id}",sha)

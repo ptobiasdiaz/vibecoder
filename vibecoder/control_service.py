@@ -56,7 +56,7 @@ class ControlService:
                                  "project.status", "project.users", "plugin.list", "plugin.show",
                                  "worker.list", "worker.status", "approval.list", "approval.show",
                                  "workflow.status", "job.list", "maintenance.status", "maintenance.check",
-                                 "backup.list", "backup.verify"})
+                                 "attempt.list", "backup.list", "backup.verify"})
     MUTATING_OPERATIONS = frozenset({"pause", "resume", "github.login", "github.verify",
                                      "project.add", "project.authorize", "project.deauthorize"})
 
@@ -78,7 +78,7 @@ class ControlService:
         self.MUTATING_OPERATIONS = self.MUTATING_OPERATIONS | frozenset(
             {"worker.add", "worker.set-policy", "worker.enable", "worker.disable", "worker.login", "worker.login-status", "worker.login-cancel", "worker.logout", "worker.verify",
              "approval.approve", "approval.deny", "workflow.poll", "maintenance.reconcile",
-             "maintenance.clear-barrier", "backup.create", "backup.restore"})
+             "plan.retry", "task.retry", "maintenance.clear-barrier", "backup.create", "backup.restore"})
         self._ensure_installation()
 
     def _ensure_installation(self) -> None:
@@ -121,6 +121,12 @@ class ControlService:
                 raise ValueError(f"{operation} requiere approval")
         elif operation in {"workflow.poll"}:
             if set(arguments) != {"project"} or not isinstance(arguments.get("project"), str): raise ValueError("workflow.poll requiere project")
+        elif operation == "plan.retry":
+            if set(arguments) != {"project","issue"} or not isinstance(arguments.get("project"),str) or not isinstance(arguments.get("issue"),int): raise ValueError("plan.retry requiere project e issue")
+        elif operation == "task.retry":
+            if set(arguments) != {"task"} or not isinstance(arguments.get("task"),str): raise ValueError("task.retry requiere task")
+        elif operation == "attempt.list":
+            if set(arguments)-{"kind","operation_id"} or (arguments.get("kind") is not None and not isinstance(arguments["kind"],str)) or (arguments.get("operation_id") is not None and not isinstance(arguments["operation_id"],str)): raise ValueError("argumentos de attempt.list no válidos")
         elif operation in {"backup.verify", "backup.restore"}:
             if set(arguments) != {"backup"} or not isinstance(arguments.get("backup"), str): raise ValueError(f"{operation} requiere backup")
         elif operation == "maintenance.clear-barrier":
@@ -197,6 +203,12 @@ class ControlService:
             if self.scheduler is None: raise ValueError("scheduler no disponible")
             if self.projects is None: raise ValueError("proyectos no disponibles")
             item=self.projects.get(str(arguments["project"]));result=self.scheduler.workflows.poll(str(item["id"]));self.audit(peer.actor,operation,"project",str(item["id"]),"SUCCEEDED","poll solicitado");return result
+        if operation == "plan.retry":
+            return self.scheduler.workflows.retry_plan(str(arguments["project"]),int(arguments["issue"]),peer.actor)
+        if operation == "task.retry":
+            return self.scheduler.workflows.retry_task(str(arguments["task"]),peer.actor)
+        if operation == "attempt.list":
+            return {"attempts":self.scheduler.workflows.attempts(arguments.get("kind"),arguments.get("operation_id"))}
         if operation == "job.list":
             return {"jobs":self.repository.query_all("SELECT id,kind,source_type,source_id,state,attempts,eligible_at,updated_at FROM scheduled_jobs ORDER BY created_at DESC LIMIT 200")}
         if operation.startswith("maintenance."):

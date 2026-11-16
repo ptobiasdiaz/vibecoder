@@ -78,6 +78,31 @@ class SQLiteRepository:
         with self.transaction():
             self.connection.execute("CREATE TABLE IF NOT EXISTS worker_approval_policies (worker_id TEXT PRIMARY KEY REFERENCES workers(id) ON DELETE CASCADE, policy TEXT NOT NULL CHECK(policy IN ('autonomous','manual')), updated_at TEXT NOT NULL)")
             self.connection.execute("INSERT OR IGNORE INTO worker_approval_policies(worker_id,policy,updated_at) SELECT id,'manual',updated_at FROM workers")
+            # M06.13 keeps immutable provider attempts separate from the
+            # logical plan/task operation.  This is an additive schema-v1
+            # extension so an installed 0.0.1 database upgrades in place.
+            self.connection.execute("""CREATE TABLE IF NOT EXISTS workflow_attempts (
+                id TEXT PRIMARY KEY,
+                operation_kind TEXT NOT NULL CHECK(operation_kind IN ('PLAN','TASK')),
+                operation_id TEXT NOT NULL,
+                attempt_number INTEGER NOT NULL CHECK(attempt_number>0),
+                provider_execution_id TEXT REFERENCES provider_executions(id),
+                status TEXT NOT NULL CHECK(status IN ('RUNNING','WAITING_RETRY','SUCCEEDED','FAILED','UNKNOWN','CANCELLED')),
+                failure_class TEXT CHECK(failure_class IN ('TRANSIENT','FUNCTIONAL','PERMANENT','AMBIGUOUS')),
+                error_category TEXT,
+                base_sha TEXT,
+                base_source TEXT,
+                next_retry_at TEXT,
+                requested_by TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                workspace_id TEXT REFERENCES workspaces(id),
+                session_id TEXT REFERENCES provider_sessions(id),
+                result_sha TEXT,
+                UNIQUE(operation_kind,operation_id,attempt_number),
+                UNIQUE(provider_execution_id)
+            )""")
+            self.connection.execute("CREATE INDEX IF NOT EXISTS workflow_attempts_due ON workflow_attempts(status,next_retry_at)")
 
     @property
     def schema_version(self) -> int:

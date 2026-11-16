@@ -133,6 +133,12 @@ def build_parser() -> argparse.ArgumentParser:
     maintenance.add_argument("maintenance_args", nargs="+"); maintenance.add_argument("--json", action="store_true", dest="as_json")
     backup = commands.add_parser("backup", help="crea, verifica y restaura backups locales")
     backup.add_argument("backup_args", nargs="+"); backup.add_argument("--json", action="store_true", dest="as_json")
+    plan = commands.add_parser("plan", help="recupera operaciones de planificación")
+    plan.add_argument("plan_args", nargs="+"); plan.add_argument("--json", action="store_true", dest="as_json")
+    task = commands.add_parser("task", help="recupera tareas fallidas")
+    task.add_argument("task_args", nargs="+"); task.add_argument("--json", action="store_true", dest="as_json")
+    attempt = commands.add_parser("attempt", help="consulta intentos inmutables")
+    attempt.add_argument("attempt_args", nargs="+"); attempt.add_argument("--kind", choices=("PLAN","TASK")); attempt.add_argument("--operation-id"); attempt.add_argument("--json", action="store_true", dest="as_json")
     return parser
 
 
@@ -296,6 +302,12 @@ def _generic_request(command: str, values: list[str]) -> tuple[str, dict[str, An
     if command == "maintenance" and len(values)==2 and values[0]=="clear-barrier": return "maintenance.clear-barrier", {"barrier":values[1]}
     if command == "backup" and values in (["create"],["list"]): return f"backup.{values[0]}", {}
     if command == "backup" and len(values)==2 and values[0] in {"verify","restore"}: return f"backup.{values[0]}", {"backup":values[1]}
+    if command == "plan" and len(values)==3 and values[0]=="retry":
+        try: issue=int(values[2])
+        except ValueError as exc: raise RuntimeError("ISSUE debe ser un número") from exc
+        return "plan.retry", {"project":values[1],"issue":issue}
+    if command == "task" and len(values)==2 and values[0]=="retry": return "task.retry", {"task":values[1]}
+    if command == "attempt" and values==["list"]: return "attempt.list", {}
     raise RuntimeError(f"acción de {command} no válida")
 
 
@@ -324,8 +336,9 @@ def main(argv: list[str] | None = None) -> int:
             operation, arguments = _plugin_request(args)
         elif args.command == "worker":
             operation, arguments = _worker_request(args)
-        elif args.command in {"workflow","job","maintenance","backup"}:
+        elif args.command in {"workflow","job","maintenance","backup","plan","task","attempt"}:
             operation, arguments = _generic_request(args.command, getattr(args, f"{args.command}_args"))
+            if args.command == "attempt": arguments={"kind":args.kind,"operation_id":args.operation_id}
             if operation in {"backup.create", "backup.restore"}:
                 client.timeout = max(client.timeout, 1810.0)
         result = client.request(operation, arguments)
@@ -357,7 +370,7 @@ def main(argv: list[str] | None = None) -> int:
             _print_worker(args, result)
         elif args.command == "approval":
             _print_approval(args, result)
-        elif args.command in {"workflow","job","maintenance","backup"}:
+        elif args.command in {"workflow","job","maintenance","backup","plan","task","attempt"}:
             print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
         elif args.command == "pause":
             print("Pausa administrativa activa" if result["changed"] else "La pausa ya estaba activa")

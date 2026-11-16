@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import httpx
+from vibecoder.codex_plugin_runtime import _classify
 
 from vibecoder.codex_app_server import CodexAppServer, CodexProtocolError
 from vibecoder.codex_installation import CodexInstallationManager
@@ -56,6 +57,10 @@ raise SystemExit(2)
 
 
 class CodexPluginTests(unittest.TestCase):
+    def test_usage_limit_errors_are_classified_as_quota(self):
+        self.assertEqual(_classify({"message":"You have reached your usage limit; resets at 10:00"},"failed"),"QUOTA_OR_RATE_LIMIT")
+        self.assertEqual(_classify({"code":"insufficient_quota"},"failed"),"QUOTA_OR_RATE_LIMIT")
+        self.assertEqual(_classify({"message":"tool failed"},"failed"),"TURN_FAILED")
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(); self.root = Path(self.temp.name)
         self.binary = self.root / "codex"; self.binary.write_text(FAKE_CODEX); self.binary.chmod(0o755)

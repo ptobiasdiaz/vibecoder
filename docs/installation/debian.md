@@ -2,7 +2,7 @@
 
 ## Compatibilidad
 
-El artefacto de release es `vibecoder_0.0.1_amd64.deb`. Debian 13 trixie amd64
+El artefacto actual es `vibecoder_0.0.1_amd64.deb`. Debian 13 trixie amd64
 es la plataforma soportada y Debian sid amd64 se valida continuamente sobre
 versiones concretas. Requiere systemd como PID 1 y Python 3.11 o posterior.
 
@@ -121,4 +121,4 @@ dpkg-deb --contents ../vibecoder_0.0.1_amd64.deb
 ```
 
 El paquete no contiene `.git`, `.venv`, bases runtime, tokens, workspaces ni
-credenciales. Consulte el [tutorial completo](../../doc/tutorial.md).
+credenciales. Consulte el [tutorial completo](../tutorial.md).

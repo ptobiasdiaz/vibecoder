@@ -41,6 +41,9 @@ vibecoder approval deny ID
 vibecoder workflow status [--json]
 vibecoder workflow poll PROJECT [--json]
 vibecoder job list [--json]
+vibecoder attempt list [--kind PLAN|TASK] [--operation-id ID] [--json]
+vibecoder plan retry PROJECT ISSUE
+vibecoder task retry TASK_ID
 vibecoder maintenance status [--json]
 vibecoder maintenance check [--json]
 vibecoder maintenance reconcile [--json]

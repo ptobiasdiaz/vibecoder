@@ -1,4 +1,4 @@
-# Roadmap — vibecoder 0.0.1
+# Roadmap — vibecoder
 
 M00–M05 document the retired 0.4.0 product line. M06 is an intentional clean
 break and does not provide data, API, CLI, or package compatibility.
@@ -18,6 +18,7 @@ break and does not provide data, API, CLI, or package compatibility.
 | M06.10 | Opt-in Breakout live acceptance | Complete: package-to-PR, review, recovery and dependent DAG live validated |
 | M06.11 | Autonomous/manual Codex action policies | Complete: autonomous PR and manual regression live validated |
 | M06.12 | User tutorial and local 0.0.1 release | Complete: documented, tested, packaged and tagged locally |
+| M06.13 | Fix 0.0.1: retry, quota recovery and fresh Git bases | Implemented and live validated |
 
 The installed package produced real PRs, processed a human review correction,
 observed a human merge and completed a fresh human-approved dependent DAG
@@ -31,5 +32,5 @@ de planes multiagente siguen perteneciendo a M06.7.
 
 M06.11 adds configurable autonomous/manual worker action policies while
 preserving human plan approval, human merge and systemd isolation. Telegram is
-explicitly deferred to the neutral approval-channel design for 0.0.2 in
+explicitly deferred to 0.0.2. The channel design remains in
 `docs/roadmap/telegram-approvals-0.0.2.md`.

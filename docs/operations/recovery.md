@@ -1,27 +1,30 @@
-# Recuperación de mantenimiento
+# Recuperación operativa
 
-El journal está en `/var/lib/vibecoder/recovery/restore-journal.json`. Si una
-restauración queda en `FAILED`, `PREPARED` o `SWAPPING`, el runtime debe permanecer
-detenido y bloqueado.
-
-Diagnóstico:
+Diagnóstico seguro:
 
 ```bash
-sudo vibecoder-admin maintenance status
-sudo vibecoder-admin maintenance check
+vibecoder status
+vibecoder doctor
+vibecoder job list --json
+vibecoder attempt list --json
+vibecoder maintenance status
+vibecoder maintenance reconcile
 ```
 
-Rollback al backup creado justo antes de restaurar:
+Los fallos de cuota confirmados quedan `WAITING_RETRY`; `eligible_at` y
+`next_retry_at` sobreviven al reinicio. Los fallos funcionales pueden
+recuperarse explícitamente:
 
 ```bash
-sudo vibecoder-admin maintenance reconcile --rollback --offline
+vibecoder plan retry PROJECT ISSUE
+vibecoder task retry TASK_ID
 ```
 
-El rollback también deja `CONFIGURED` y pausa global. Después se deben reconciliar
-jobs UNKNOWN, PRs, pushes, comentarios, merges y sesiones con los servicios M03/M04.
-No se repite inferencia ni publicación por el simple hecho de restaurar o expirar un
-lease.
+Un reintento crea otra ejecución e idempotency key, preserva el intento anterior
+y no repite publicaciones ya confirmadas. Los estados `UNKNOWN` o efectos
+externos inciertos no admiten reintento: deben reconciliarse y mantienen una
+barrera cuando corresponde.
 
-Una migración fallida deja el paquete sin configurar y conserva el backup
-pre-migración. No edite `schema_migrations` manualmente ni elimine el journal para
-forzar el arranque.
+Después de un restore, la barrera de recuperación tampoco se levanta mediante
+`resume`. Verifique el estado externo y utilice exclusivamente los comandos de
+mantenimiento. No edite SQLite ni elimine journals o barreras manualmente.

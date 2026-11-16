@@ -23,6 +23,12 @@ install -d -o vibecoder -g vibecoder -m 0700 /var/lib/vibecoder/secrets
 install -d -o vibecoder -g vibecoder -m 0700 /var/lib/vibecoder/backups
 install -d -o vibecoder -g vibecoder-runtime -m 0711 /run/vibecoder
 
+# Python bytecode is generated at runtime and is not owned by dpkg.  Remove
+# stale caches before restarting services so a reinstall of the same version,
+# or a corrective downgrade, cannot execute code from the previous package.
+find /usr/lib/python3/dist-packages/vibecoder -type d -name __pycache__ \
+    -prune -exec rm -rf -- {} + 2>/dev/null || true
+
 if command -v systemctl >/dev/null && [ -d /run/systemd/system ]; then
     systemctl daemon-reload
     systemctl enable vibecoder-worker-launcher.service vibecoder.service

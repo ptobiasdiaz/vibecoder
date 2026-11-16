@@ -1,4 +1,4 @@
-# Telegram como canal de aprobaciones — propuesta 0.0.2
+# Telegram como canal de aprobaciones — propuesta pospuesta
 
 Telegram será un canal del servicio neutral de aprobaciones del núcleo, nunca
 una capacidad especial del plugin Codex:
@@ -22,4 +22,5 @@ redacción de secretos. El bot no aprobará planes, no hará merges y no dará a
 los plugins acceso al token. El contrato futuro deberá permitir otros canales
 sin cambiar plugins ni persistencia de ejecuciones.
 
-Esta propuesta no está implementada en 0.0.1.
+Esta propuesta no está implementada y permanece prevista para 0.0.2. El fix
+M06.13 conserva la versión 0.0.1.

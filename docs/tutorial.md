@@ -463,6 +463,27 @@ incierto.
 
 ## 14. Referencia rápida
 
+### Recuperar planes y tareas
+
+Una cuota confirmada entra en espera y se reintenta automáticamente con
+backoff. Consulte el historial sin abrir SQLite:
+
+```bash
+vibecoder attempt list --json
+vibecoder job list --json
+```
+
+Un fallo funcional confirmado requiere una decisión administrativa explícita:
+
+```bash
+vibecoder plan retry propietario/proyecto NUMERO_ISSUE
+vibecoder task retry UUID_COMPLETO_DE_TAREA
+```
+
+El reintento conserva el plan aprobado y crea una identidad de intento nueva.
+No funciona sobre resultados `UNKNOWN`: primero deben reconciliarse mediante
+`vibecoder maintenance reconcile`. Nunca edite SQLite para cambiar estados.
+
 ```bash
 vibecoder --version
 vibecoder status [--json]

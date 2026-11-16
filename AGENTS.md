@@ -34,6 +34,10 @@ migrations, entry points, or configuration formats from vibecoder 0.4.0.
 - M06.11 separates plan approval from worker action policy. `autonomous`
   means Codex `never` approval inside `workspace-write`, never unrestricted;
   residual approval requests are denied and cannot be auto-accepted.
+- M06.13 gives every plan/task provider attempt a new immutable identity.
+  Confirmed quota failures may wait and retry; functional failures require an
+  explicit retry; ambiguous effects remain `UNKNOWN`. Independent tasks verify
+  current remote HEAD while dependent tasks inherit predecessor results.
 - The CLI must never open SQLite. Mutations belong to the daemon and use kernel peer credentials.
 - The GitHub PAT is daemon-owned secret material. Never include it in domain
   objects, diagnostics, audit details, exceptions, URLs, arguments or plugin contracts.

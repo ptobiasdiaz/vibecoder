@@ -25,6 +25,8 @@ class DebianPackageTests(unittest.TestCase):
         self.assertIn("d /var/lib/vibecoder/plugins 0755 vibecoder vibecoder -",tmpfiles)
         postinst=(ROOT/"debian/postinst").read_text()
         self.assertIn("-m 0755 /var/lib/vibecoder/plugins",postinst)
+        self.assertIn("/usr/lib/python3/dist-packages/vibecoder",postinst)
+        self.assertIn("-name __pycache__",postinst)
         self.assertIn("systemctl restart vibecoder-worker-launcher.service",postinst)
         self.assertLess(postinst.index("systemctl restart vibecoder-worker-launcher.service"),
                         postinst.index("systemctl restart vibecoder.service"))

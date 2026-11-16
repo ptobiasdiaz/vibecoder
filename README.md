@@ -16,6 +16,7 @@ La versión 0.0.1 incluye:
 - planes aprobados por hash, DAG de tareas, scheduler y recuperación;
 - commits, ramas, PRs, correcciones de review y detección de merge humano;
 - backup/restore y paquete Debian con systemd.
+- intentos inmutables, recuperación de cuota y bases Git remotas actualizadas.
 
 `autonomous` permite a Codex leer, escribir y ejecutar tests dentro del
 sandbox asignado sin confirmaciones ordinarias. No significa acceso
@@ -52,8 +53,10 @@ un worker operativo. No existe una activación manual global.
 
 ## Documentación
 
-- [Tutorial de instalación y primer proyecto](doc/tutorial.md)
-- [Notas de versión 0.0.1](doc/release-notes-v0.0.1.md)
+- [Tutorial de instalación y primer proyecto](docs/tutorial.md)
+- [Notas de versión 0.0.1](docs/releases/v0.0.1.md)
+- [Notas del fix de recuperación 0.0.1](docs/releases/v0.0.1-fix.md)
+- [Reintentos y recuperación](docs/architecture/retry-and-recovery.md)
 - [Arquitectura](docs/architecture/vibecoder-0.0.1.md)
 - [Instalación Debian](docs/installation/debian.md)
 - [Fine-grained PAT](docs/github/fine-grained-pat.md)
@@ -70,7 +73,7 @@ un worker operativo. No existe una activación manual global.
 El artefacto publicado es `amd64`; no existe interfaz web ni marketplace de
 plugins. Codex 0.167.0 es la versión validada. Las operaciones `UNKNOWN`
 requieren reconciliación y nunca se reintentan a ciegas. Telegram y los canales
-alternativos de aprobación quedan fuera de 0.0.1 y están previstos para 0.0.2.
+alternativos de aprobación quedan fuera de 0.0.1.
 
 La línea 0.0.1 no es compatible con bases, configuración o entrypoints de
 vibecoder 0.4.0. Los documentos M00–M05 permanecen únicamente como evidencia

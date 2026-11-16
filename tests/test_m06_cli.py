@@ -116,3 +116,13 @@ class CLITests(unittest.TestCase):
         code, out, _ = self.invoke(["worker", "list", "--json"], {"workers": [worker]})
         self.assertEqual(json.loads(out)["workers"][0]["name"], "fake-1")
 
+    def test_retry_and_attempt_commands_use_daemon_api(self):
+        with patch("vibecoder.cli.ControlClient.request", return_value={"changed":True,"state":"PENDING"}) as request:
+            self.assertEqual(main(["plan","retry","owner/demo","16"]),0)
+            request.assert_called_once_with("plan.retry",{"project":"owner/demo","issue":16})
+        with patch("vibecoder.cli.ControlClient.request", return_value={"changed":True,"state":"PENDING"}) as request:
+            self.assertEqual(main(["task","retry","full-task-id"]),0)
+            request.assert_called_once_with("task.retry",{"task":"full-task-id"})
+        code,out,_=self.invoke(["attempt","list","--kind","TASK","--json"],{"attempts":[]})
+        self.assertEqual(code,0);self.assertEqual(json.loads(out),{"attempts":[]})
+

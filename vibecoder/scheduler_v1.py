@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from .github_identity import utc_now
+from .errors import RetryDeferred
 from .sqlite import SQLiteRepository
 
 
@@ -26,14 +27,25 @@ class PersistentScheduler:
                 (str(uuid.uuid4()),row["id"],"POLL_PROJECT","project",row["id"],now,key,now,now))
 
     def recover(self) -> int:
-        now=utc_now(); rows=self.repository.query_all("SELECT j.id,j.kind FROM scheduled_jobs j JOIN job_leases l ON l.job_id=j.id WHERE j.state='RUNNING' AND l.expires_at<?",(now,))
+        now=utc_now(); rows=self.repository.query_all("SELECT j.id,j.kind,j.source_id FROM scheduled_jobs j JOIN job_leases l ON l.job_id=j.id WHERE j.state='RUNNING' AND l.expires_at<?",(now,))
         for row in rows:
             # A crashed local poll can safely be repeated; provider and publication
             # jobs rely on their own idempotency records. Task execution cannot.
-            state="PENDING" if row["kind"] in self.SAFE_RETRY_KINDS else "UNKNOWN"
+            pre_effect = row["kind"]=="EXECUTE_TASK" and self.repository.query_one("SELECT 1 FROM workflow_attempts a JOIN task_runs tr ON tr.task_id=a.operation_id WHERE a.operation_kind='TASK' AND a.operation_id=? AND a.status='RUNNING' AND a.provider_execution_id IS NULL AND tr.status='PREPARING'",(row["source_id"],))
+            state="FAILED" if pre_effect else "PENDING" if row["kind"] in self.SAFE_RETRY_KINDS else "UNKNOWN"
             self.repository.execute("UPDATE scheduled_jobs SET state=?,updated_at=? WHERE id=?",(state,now,row["id"]))
             self.repository.execute("DELETE FROM job_leases WHERE job_id=?",(row["id"],))
             if state=="UNKNOWN": self._barrier(f"job interrumpido con efecto incierto: {row['id']}")
+        # A task which stopped while preparing/merging its local workspace has
+        # not started the provider and cannot have produced a remote effect.
+        # Classify that state explicitly instead of manufacturing UNKNOWN.
+        for attempt in self.repository.query_all("SELECT a.id,a.operation_id,tr.id run_id FROM workflow_attempts a JOIN task_runs tr ON tr.task_id=a.operation_id WHERE a.operation_kind='TASK' AND a.status='RUNNING' AND a.provider_execution_id IS NULL AND tr.status='PREPARING'"):
+            self.repository.execute("UPDATE workflow_attempts SET status='FAILED',failure_class='FUNCTIONAL',error_category='WORKSPACE_PREPARATION_INTERRUPTED',updated_at=? WHERE id=?",(now,attempt["id"]))
+            self.repository.execute("UPDATE task_runs SET status='FAILED',updated_at=? WHERE id=?",(now,attempt["run_id"]))
+            self.repository.execute("UPDATE tasks SET status='BLOCKED',updated_at=? WHERE id=?",(now,attempt["operation_id"]))
+        for attempt in self.repository.query_all("SELECT a.id,a.provider_execution_id FROM workflow_attempts a LEFT JOIN provider_executions e ON e.id=a.provider_execution_id WHERE a.status='RUNNING' AND (a.provider_execution_id IS NULL OR e.outcome='UNKNOWN')"):
+            self.repository.execute("UPDATE workflow_attempts SET status='UNKNOWN',failure_class='AMBIGUOUS',error_category='DAEMON_RESTART',updated_at=? WHERE id=?",(now,attempt["id"]))
+            self._barrier(f"intento interrumpido requiere reconciliación: {attempt['id']}")
         return len(rows)
 
     def cycle(self) -> dict[str, Any] | None:
@@ -42,6 +54,15 @@ class PersistentScheduler:
         if not job:return None
         try:
             result=self._dispatch(job)
+        except RetryDeferred as exc:
+            # The provider confirmed that no useful effect completed.  Keep
+            # the same logical job pending, but the workflow will allocate a
+            # fresh immutable provider-attempt identity when it becomes due.
+            self.repository.execute("DELETE FROM job_leases WHERE job_id=?",(job["id"],))
+            self.repository.execute("UPDATE scheduled_jobs SET state='PENDING',eligible_at=?,updated_at=? WHERE id=?",
+                                    (exc.next_retry_at,utc_now(),job["id"]))
+            return {"job_id":job["id"],"state":"PENDING","error":exc.code,
+                    "next_retry_at":exc.next_retry_at}
         except Exception as exc:
             current=self.repository.query_one("SELECT attempts FROM scheduled_jobs WHERE id=?",(job["id"],)) or {"attempts":1}
             if job["kind"] in self.SAFE_RETRY_KINDS and int(current["attempts"])<5 and not self.repository.query_one("SELECT 1 FROM recovery_barriers WHERE status='ACTIVE'"):

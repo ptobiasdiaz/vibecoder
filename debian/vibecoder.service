@@ -1,5 +1,5 @@
 [Unit]
-Description=Vibecoder 0.0.1 orchestration daemon
+Description=Vibecoder orchestration daemon
 Documentation=file:/usr/share/doc/vibecoder/README.md
 After=local-fs.target network-online.target vibecoder-worker-launcher.service
 Wants=network-online.target

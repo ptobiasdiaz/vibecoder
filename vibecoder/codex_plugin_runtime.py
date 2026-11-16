@@ -252,7 +252,9 @@ def _write_progress(path: Path, status: str, display: str) -> None:
 def _classify(error: dict[str, Any] | None, status: str) -> str:
     text = json.dumps(error or {}).casefold()
     if "auth" in text or "unauthorized" in text: return "AUTHENTICATION_REQUIRED"
-    if "quota" in text or "rate" in text: return "QUOTA_OR_RATE_LIMIT"
+    quota_markers = ("quota", "rate limit", "rate_limit", "usage limit", "usage_limit",
+                     "limit reached", "insufficient_quota", "resets at", "try again later")
+    if any(marker in text for marker in quota_markers): return "QUOTA_OR_RATE_LIMIT"
     return "TURN_" + status.upper()
 
 

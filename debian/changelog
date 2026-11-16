@@ -6,6 +6,10 @@ vibecoder (0.0.1) unstable; urgency=medium
   * Add authorized Issues-to-PR workflow and persistent scheduler.
   * Add coherent local backup, recovery barriers and Debian services.
   * Add persistent autonomous/manual Codex action approval policies.
+  * Add durable provider-attempt history and explicit plan/task retry commands.
+  * Recover confirmed Codex quota failures with persistent bounded backoff.
+  * Refresh the remote base SHA for every new independent task attempt.
+  * Preserve conservative UNKNOWN reconciliation and dependent-task ancestry.
 
  -- Tobias Diaz <tobias.diaz@uclm.es>  Tue, 10 Nov 2026 18:00:00 +0100
 

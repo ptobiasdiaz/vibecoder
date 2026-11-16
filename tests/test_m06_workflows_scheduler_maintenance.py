@@ -9,13 +9,14 @@ from vibecoder.maintenance_v1 import MaintenanceService
 from vibecoder.scheduler_v1 import PersistentScheduler
 from vibecoder.sqlite import SQLiteRepository
 from vibecoder.workflows_v1 import WorkflowService
+from vibecoder.errors import RetryDeferred
 
 
 class Identity:
     def credential_for_internal_use(self): return "secret-test-token", {"github_user_id":7,"login":"owner"}
 
 class API:
-    def __init__(self): self.posted=[]
+    def __init__(self): self.posted=[];self.current_sha=None
     def issues(self, token, repository):
         return [{"id":101,"number":1,"user":{"id":7},"body":"Build it","created_at":"2026-01-01T00:00:00+00:00"},
                 {"id":102,"number":2,"user":{"id":99},"body":"SECRET UNTRUSTED","created_at":"2026-01-01T00:00:00+00:00"}]
@@ -25,7 +26,7 @@ class API:
     def find_pull_request(self,*a,**kw): return None
     def pull_request(self,*a,**kw): return {"merged":False}
     def reviews(self,*a,**kw): return []
-    def branch_sha(self,*a,**kw): return None
+    def branch_sha(self,*a,**kw): return self.current_sha
 
 class Workers:
     def __init__(self, repo): self.repo=repo;self.commit_changes=False
@@ -113,6 +114,45 @@ class M06WorkflowTests(unittest.TestCase):
         sha=subprocess.check_output(("git","-C",str(base),"rev-parse","HEAD"),text=True).strip();self.repo.execute("UPDATE projects SET remote_sha=? WHERE id='project'",(sha,));self.repo.execute("INSERT INTO workspaces VALUES('base','project','PROJECT',?,'main',?,'READY',?,?)",(str(base),sha,"2026-01-01T00:00:00+00:00","2026-01-01T00:00:00+00:00"))
         task=self.repo.query_one("SELECT id FROM tasks");run=self.service.execute_task(task["id"]);self.assertEqual(run["status"],"SUCCEEDED");self.assertEqual(self.repo.query_one("SELECT count(*) n FROM pull_requests")["n"],1)
 
+    def test_independent_task_refreshes_stale_project_sha_from_remote_head(self):
+        self.service.poll("project");issue=self.repo.query_one("SELECT id FROM issue_workflows");plan=self.service.generate_plan(issue["id"]);self.service.approve_plan(issue["id"],plan["canonical_hash"],7,"approval")
+        base=Path(self.temp.name)/"state"/"workspaces"/"project";base.mkdir(parents=True)
+        subprocess.run(("git","init","-b","main",str(base)),check=True,stdout=subprocess.DEVNULL)
+        (base/"LICENSE").write_text("old\n");subprocess.run(("git","-C",str(base),"add","LICENSE"),check=True);subprocess.run(("git","-C",str(base),"-c","user.name=test","-c","user.email=test@example.invalid","commit","-m","old"),check=True,stdout=subprocess.DEVNULL)
+        old=subprocess.check_output(("git","-C",str(base),"rev-parse","HEAD"),text=True).strip()
+        (base/"game.py").write_text("current = True\n");subprocess.run(("git","-C",str(base),"add","game.py"),check=True);subprocess.run(("git","-C",str(base),"-c","user.name=test","-c","user.email=test@example.invalid","commit","-m","current"),check=True,stdout=subprocess.DEVNULL)
+        current=subprocess.check_output(("git","-C",str(base),"rev-parse","HEAD"),text=True).strip();self.api.current_sha=current
+        self.repo.execute("UPDATE projects SET remote_sha=? WHERE id='project'",(old,));self.repo.execute("INSERT INTO workspaces VALUES('base','project','PROJECT',?,'main',?,'READY',?,?)",(str(base),old,"2026-01-01T00:00:00+00:00","2026-01-01T00:00:00+00:00"))
+        task=self.repo.query_one("SELECT id FROM tasks");run=self.service.execute_task(task["id"])
+        self.assertEqual(run["base_sha"],current)
+        self.assertEqual(self.repo.query_one("SELECT remote_sha FROM projects WHERE id='project'")["remote_sha"],current)
+        attempt=self.repo.query_one("SELECT * FROM workflow_attempts WHERE operation_kind='TASK' AND operation_id=?",(task["id"],))
+        self.assertEqual((attempt["base_sha"],attempt["base_source"],attempt["status"]),(current,"REMOTE_BRANCH","SUCCEEDED"))
+
+    def test_quota_wait_creates_new_attempt_and_persistent_backoff(self):
+        self.service.poll("project");issue=self.repo.query_one("SELECT id FROM issue_workflows")
+        original=self.service.workers.execute;calls=[]
+        def quota(session,key,instructions,**kwargs):
+            calls.append(key);eid="quota-"+str(len(calls));now="2026-01-01T00:00:00+00:00"
+            self.repo.execute("INSERT INTO provider_executions VALUES(?,?, 'worker',?,'FINISHED','WAITING_QUOTA',NULL,'QUOTA_OR_RATE_LIMIT','{}','{}',?,?)",(eid,session,key,now,now))
+            return {"id":eid,"outcome":"WAITING_QUOTA","error_category":"QUOTA_OR_RATE_LIMIT","result_json":"{}"}
+        self.service.workers.execute=quota
+        with self.assertRaises(RetryDeferred):self.service.generate_plan(issue["id"])
+        waiting=self.repo.query_one("SELECT * FROM workflow_attempts WHERE operation_kind='PLAN' AND operation_id=?",(issue["id"],));self.assertEqual(waiting["status"],"WAITING_RETRY");self.assertIsNotNone(waiting["next_retry_at"])
+        self.service.workers.execute=original;plan=self.service.generate_plan(issue["id"])
+        attempts=self.repo.query_all("SELECT attempt_number,status FROM workflow_attempts WHERE operation_kind='PLAN' AND operation_id=? ORDER BY attempt_number",(issue["id"],))
+        self.assertEqual(attempts,[{"attempt_number":1,"status":"WAITING_RETRY"},{"attempt_number":2,"status":"SUCCEEDED"}]);self.assertTrue(plan["id"])
+
+    def test_explicit_task_retry_preserves_failed_attempt_history(self):
+        self.service.poll("project");issue=self.repo.query_one("SELECT id FROM issue_workflows");plan=self.service.generate_plan(issue["id"]);self.service.approve_plan(issue["id"],plan["canonical_hash"],7,"approval")
+        task=self.repo.query_one("SELECT id FROM tasks");now="2026-01-01T00:00:00+00:00"
+        self.repo.execute("UPDATE tasks SET status='FAILED' WHERE id=?",(task["id"],))
+        self.repo.execute("UPDATE scheduled_jobs SET state='FAILED' WHERE kind='EXECUTE_TASK' AND source_id=?",(task["id"],))
+        self.repo.execute("INSERT INTO workflow_attempts(id,operation_kind,operation_id,attempt_number,status,failure_class,error_category,requested_by,created_at,updated_at) VALUES('old-attempt','TASK',?,1,'FAILED','FUNCTIONAL','NO_CHANGES','scheduler',?,?)",(task["id"],now,now))
+        result=self.service.retry_task(task["id"],"unix:test");self.assertTrue(result["changed"])
+        self.assertEqual(self.repo.query_one("SELECT status FROM tasks WHERE id=?",(task["id"],))["status"],"PENDING")
+        self.assertEqual(self.repo.query_one("SELECT count(*) n FROM workflow_attempts WHERE operation_id=?",(task["id"],))["n"],1)
+
     def test_task_accepts_clean_provider_commit_descended_from_verified_base(self):
         self.service.poll("project");issue=self.repo.query_one("SELECT id FROM issue_workflows");plan=self.service.generate_plan(issue["id"]);self.service.approve_plan(issue["id"],plan["canonical_hash"],7,"approval")
         base=Path(self.temp.name)/"state"/"workspaces"/"project";base.mkdir(parents=True)
@@ -159,6 +199,19 @@ class M06WorkflowTests(unittest.TestCase):
         reconciled=self.service.reconcile_incomplete_tasks()
         self.assertEqual(reconciled,{"changed":1,"blocked":0})
         self.assertEqual(self.repo.query_one("SELECT status FROM tasks WHERE id=?",(second,))["status"],"FAILED")
+
+    def test_recovery_classifies_pre_provider_workspace_preparation_as_functional(self):
+        self.service.poll("project");issue=self.repo.query_one("SELECT id FROM issue_workflows");plan=self.service.generate_plan(issue["id"]);self.service.approve_plan(issue["id"],plan["canonical_hash"],7,"approval")
+        task=self.repo.query_one("SELECT id FROM tasks");now="2026-01-01T00:00:00+00:00"
+        self.repo.execute("INSERT INTO task_runs VALUES('preparing-run',?,NULL,NULL,NULL,'branch','a',NULL,'PREPARING',?,?)",(task["id"],now,now))
+        self.repo.execute("INSERT INTO workflow_attempts(id,operation_kind,operation_id,attempt_number,status,base_sha,base_source,requested_by,created_at,updated_at) VALUES('preparing-attempt','TASK',?,1,'RUNNING','a','REMOTE_BRANCH','scheduler',?,?)",(task["id"],now,now))
+        job=self.repo.query_one("SELECT id FROM scheduled_jobs WHERE kind='EXECUTE_TASK' AND source_id=?",(task["id"],));self.repo.execute("UPDATE scheduled_jobs SET state='RUNNING',attempts=1 WHERE id=?",(job["id"],));self.repo.execute("INSERT INTO job_leases VALUES(?,?,?,?,?,?)",(job["id"],"dead-runner","token",now,now,now))
+        PersistentScheduler(self.repo,self.service).recover()
+        attempt=self.repo.query_one("SELECT status,failure_class,error_category FROM workflow_attempts WHERE id='preparing-attempt'")
+        self.assertEqual(attempt,{"status":"FAILED","failure_class":"FUNCTIONAL","error_category":"WORKSPACE_PREPARATION_INTERRUPTED"})
+        self.assertEqual(self.repo.query_one("SELECT status FROM tasks WHERE id=?",(task["id"],))["status"],"BLOCKED")
+        self.assertEqual(self.repo.query_one("SELECT state FROM scheduled_jobs WHERE id=?",(job["id"],))["state"],"FAILED")
+        self.assertEqual(self.repo.query_one("SELECT count(*) n FROM recovery_barriers")["n"],0)
     def test_backup_verify_requires_pause(self):
         now="2026-01-01T00:00:00+00:00";self.repo.execute("INSERT INTO operational_pauses VALUES('p','GLOBAL',NULL,'ALL','test','test',?,NULL)",(now,))
         service=MaintenanceService(self.repo,Path(self.temp.name)/"state");created=service.create_backup("test");verified=service.verify(created["id"])

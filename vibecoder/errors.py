@@ -14,6 +14,17 @@ class OperationError(CoreError):
         super().__init__(message)
 
 
+class RetryDeferred(OperationError):
+    """A confirmed, effect-free transient failure eligible for a later attempt."""
+    code = "RETRY_DEFERRED"
+
+    def __init__(self, message: str, *, next_retry_at: str, details: dict[str, object] | None = None):
+        merged = dict(details or {})
+        merged["next_retry_at"] = next_retry_at
+        self.next_retry_at = next_retry_at
+        super().__init__(message, details=merged)
+
+
 class ValidationError(CoreError):
     pass
 
